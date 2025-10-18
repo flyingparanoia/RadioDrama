@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>字幕自动配对播放器（MP3 + SRT/LRC）</title>
+<style>
+  :root{--bg:#0f1115;--panel:#1a1d24;--text:#d7dbe7;--muted:#8e97a8;--active:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0f1115;color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:grid;grid-template-rows:auto 1fr;height:100vh}
+  header{padding:14px 16px;display:grid;gap:10px;grid-template-columns:1fr auto;align-items:center;background:var(--panel);border-bottom:1px solid #222734}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{appearance:none;border:0;border-radius:10px;background:#2a3040;color:#fff;padding:10px 14px;cursor:pointer}
+  .btn:hover{filter:brightness(1.05)}
+  .select{background:#2a3040;color:#dfe7ff;border:0;border-radius:10px;padding:10px 12px}
+  .hint{color:var(--muted);font-size:12px}
+  .time{font-variant-numeric:tabular-nums;color:#aab2c2;min-width:88px;text-align:right}
+  main{display:grid;grid-template-columns:420px 1fr;height:100%}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .left{border-right:1px solid #222734;padding:16px;display:grid;gap:12px;align-content:start}
+  .progress{width:100%;height:6px;background:#222735;border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0;background:#5c7cfa;transition:width .2s linear}
+  .right{position:relative;overflow:hidden}
+  .lyrics{position:absolute;inset:0;overflow:auto;scroll-behavior:smooth;padding:28px 16px 100px}
+  .line{padding:8px 12px;margin:2px 0;border-radius:12px;cursor:pointer;transition:.12s;opacity:.9}
+  .line:hover{background:#1f2432}
+  .line.future{color:#8e97a8;opacity:.7}
+  .line.past{color:#c2c8d8}
+  .line.active{background:#2c3345;color:#fff;transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.25),inset 0 0 0 1px rgba(255,255,255,.04)}
+</style>
+</head>
+<body>
+<header>
+  <div class="controls">
+    <button class="btn" id="playPause">▶︎ / ⏸</button>
+    <span class="time" id="cur">00:00</span> /
+    <span class="time" id="dur">00:00</span>
+    <div style="flex:1"></div>
+
+    <!-- 一次性选择多个文件 或 整个文件夹；自动配对同名 mp3 + srt/lrc -->
+    <label class="btn" for="picker">选择文件/文件夹</label>
+    <input id="picker" type="file" multiple
+           accept="audio/*,.srt,.lrc,text/plain" style="display:none" />
+    <select id="pairSelect" class="select" style="display:none"></select>
+  </div>
+  <div class="hint">
+    支持把同名 <b>xxx.mp3</b> 与 <b>xxx.srt/.lrc</b> 一次性选中或选整个目录，自动配对。
+  </div>
+</header>
+
+<main>
+  <section class="left">
+    <audio id="player" preload="metadata" controls style="width:100%"></audio>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</div>
+  </section>
+  <section class="right">
+    <div id="lyrics" class="lyrics" aria-label="lyrics list"></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const player = $('#player'), bar = $('#bar');
+const playBtn = $('#playPause'), curEl = $('#cur'), durEl = $('#dur');
+const picker = $('#picker'), pairSelect = $('#pairSelect');
+const lyricsWrap = $('#lyrics');
+
+let cues = [], activeIdx = -1;
+
+/* ------------ 工具 ------------ */
+const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
+const ext = f => f.name.split('.').pop().toLowerCase();
+const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
+const isAudio = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i.test(e);
+const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
+const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+/* ------------ 解析字幕 ------------ */
+function parseLRC(text){
+  const lines = text.replace(/\r/g,'').split('\n'); const cues=[];
+  for(const raw of lines){
+    const ts=[...raw.matchAll(/\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)];
+    if(!ts.length) continue;
+    const lyric = raw.replace(/\[[^\]]+\]/g,'').trim(); if(!lyric) continue;
+    for(const m of ts){ const mm=+m[1], ss=+m[2], ms=m[3]? +m[3].padEnd(3,'0'):0; cues.push({start:mm*60+ss+ms/1000, text:lyric});}
+  }
+  return cues.sort((a,b)=>a.start-b.start);
+}
+function parseSRT(text){
+  const blocks = text.replace(/\r/g,'').split(/\n\s*\n/), cues=[];
+  const re=/(\d\d?):(\d\d):(\d\d),(\d{3})\s*-->\s*(\d\d?):(\d\d):(\d\d),(\d{3})/;
+  for(const b of blocks){
+    const lines=b.split('\n').filter(Boolean); if(lines.length<2) continue;
+    const m=lines[1].match(re); const t=lines.slice(2).join(' ').replace(/<[^>]+>/g,'').trim(); if(!m||!t) continue;
+    const start=(+m[1])*3600+(+m[2])*60+(+m[3])+(+m[4])/1000; cues.push({start,text:t});
+  }
+  return cues.sort((a,b)=>a.start-b.start);
+}
+function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2}:\d{2}/.test(text) ? parseSRT(text) : parseLRC(text); }
+
+/* ------------ 渲染 & 高亮 ------------ */
+function render(cuesList){
+  lyricsWrap.innerHTML='';
+  cuesList.forEach((c,i)=>{
+    const div=document.createElement('div');
+    div.className='line future'; div.dataset.idx=i; div.dataset.start=c.start;
+    div.innerHTML=`<span class="time">${fmt(c.start)}</span> &nbsp; ${escapeHtml(c.text)}`;
+    div.onclick=()=>{ player.currentTime=c.start+0.02; player.play(); setActive(i,true); };
+    lyricsWrap.appendChild(div);
+  });
+  activeIdx=-1; setActiveByTime(0,true);
+}
+function setActive(i,center=false){
+  if(i===activeIdx) return; activeIdx=i;
+  const lines=[...lyricsWrap.querySelectorAll('.line')];
+  lines.forEach((el,k)=>{ el.classList.remove('past','future','active');
+    if(k<i) el.classList.add('past'); else if(k>i) el.classList.add('future');
+  });
+  const cur = lines[i]; if(cur){ cur.classList.add('active');
+    const margin=120, top=cur.offsetTop-lyricsWrap.clientHeight/2+cur.clientHeight/2;
+    const need = cur.offsetTop < lyricsWrap.scrollTop + margin ||
+                 cur.offsetTop+cur.clientHeight > lyricsWrap.scrollTop+lyricsWrap.clientHeight - margin;
+    if(center || need) lyricsWrap.scrollTo({top,behavior:'smooth'});
+  }
+}
+function setActiveByTime(t,center=false){
+  if(!cues.length) return;
+  let lo=0, hi=cues.length-1, ans=0;
+  while(lo<=hi){ const m=(lo+hi)>>1; if(cues[m].start<=t+0.001){ans=m; lo=m+1;} else hi=m-1; }
+  setActive(ans,center);
+}
+
+/* ------------ 播放器事件 ------------ */
+playBtn.onclick=()=> player.paused ? player.play() : player.pause();
+player.ontimeupdate=()=>{
+  curEl.textContent=fmt(player.currentTime);
+  if(isFinite(player.duration)) bar.style.width=(player.currentTime/player.duration*100).toFixed(2)+'%';
+  setActiveByTime(player.currentTime);
+};
+player.onloadedmetadata=()=> durEl.textContent=fmt(player.duration);
+document.addEventListener('keydown',e=>{
+  if(!cues.length) return;
+  if(e.key==='ArrowDown'){ setActive(Math.min(activeIdx+1,cues.length-1),true); e.preventDefault(); }
+  else if(e.key==='ArrowUp'){ setActive(Math.max(activeIdx-1,0),true); e.preventDefault(); }
+  else if(e.key==='Enter'){ const t=cues[Math.max(0,activeIdx)].start; player.currentTime=t+0.02; player.play(); }
+});
+
+/* ------------ 自动配对：一次选择，多对匹配 ------------ */
+picker.onchange = async (e)=>{
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+
+  // 以“去扩展名的小写文件名”分组
+  const groups = new Map();
+  for(const f of files){
+    const ex = ext(f), st = stem(f);
+    if(!(isAudio(ex)||isLyric(ex))) continue;
+    if(!groups.has(st)) groups.set(st,{audio:null, lyric:null, name:st});
+    const g = groups.get(st);
+    if(isAudio(ex) && !g.audio) g.audio=f;
+    if(isLyric(ex)) { // srt 优先于 lrc/txt
+      if(!g.lyric || /\.srt$/i.test(f.name)) g.lyric=f;
+    }
+  }
+
+  // 收集可用的配对或单边
+  const pairs = [...groups.values()].filter(g=>g.audio||g.lyric);
+  if(!pairs.length){ alert('未找到可用的 MP3 或 字幕文件'); return; }
+
+  // 若有多对，构建选择器
+  pairSelect.innerHTML='';
+  pairs.forEach((g,i)=>{
+    const label = `${g.name}` +
+      (g.audio? ` [🎵 ${g.audio.name}]` : '') +
+      (g.lyric? ` [📝 ${g.lyric.name}]` : ' [无字幕]');
+    const opt=document.createElement('option');
+    opt.value=String(i); opt.textContent=label;
+    pairSelect.appendChild(opt);
+  });
+  pairSelect.style.display = pairs.length>1 ? 'inline-block':'none';
+
+  // 加载第一对
+  await loadPair(pairs[0]);
+
+  // 切换其它配对
+  pairSelect.onchange = async () => {
+    const idx = +pairSelect.value;
+    await loadPair(pairs[idx]);
+  };
+};
+
+async function loadPair(group){
+  if(group.audio){
+    player.src = URL.createObjectURL(group.audio);
+    try{ await player.play(); }catch{}
+  }
+  if(group.lyric){
+    const text = await group.lyric.text();
+    cues = pickParser(group.lyric.name, text);
+    render(cues);
+  }else{
+    cues = []; lyricsWrap.innerHTML = '<div class="line">（无字幕）</div>';
+  }
+  // 让下拉选中当前
+  [...pairSelect.options].forEach((o,i)=>{ if(i===0) o.selected=true; });
+}
+</script>
+</body>
+</html>
