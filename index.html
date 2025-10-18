@@ -37,14 +37,14 @@
     <span class="time" id="dur">00:00</span>
     <div style="flex:1"></div>
 
-    <!-- 一次性选择多个文件 或 整个文件夹；自动配对同名 mp3 + srt/lrc -->
-    <label class="btn" for="picker">选择文件/文件夹</label>
+    <!-- 一次性选择多个文件；自动配对同名 mp3 + srt/lrc -->
+    <label class="btn" for="picker">选择文件</label>
     <input id="picker" type="file" multiple
-           accept="audio/*,.srt,.lrc,text/plain" style="display:none" />
+           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
     <select id="pairSelect" class="select" style="display:none"></select>
   </div>
-  <div class="hint">
-    支持把同名 <b>xxx.mp3</b> 与 <b>xxx.srt/.lrc</b> 一次性选中或选整个目录，自动配对。
+  <div class="hint" id="hintText">
+    桌面浏览器可一次选多个 <b>xxx.mp3</b> 与 <b>xxx.srt/.lrc</b>，iOS 需从「文件」App 选择（Apple Music 库不支持）。
   </div>
 </header>
 
@@ -60,6 +60,24 @@
 </main>
 
 <script>
+/* ===== iOS 兼容补丁：放开 accept，允许把 MP3 选进来 ===== */
+const pickerEl = document.getElementById('picker');
+const isIOS = (() => {
+  const ua = navigator.userAgent || '';
+  const isiOSDev = /iPad|iPhone|iPod/.test(ua);
+  // iPadOS Safari 报 MacIntel + 触控点 > 1
+  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return isiOSDev || isIPadOS;
+})();
+if (isIOS) {
+  // iOS 上移除 accept 过滤（Safari 在混合类型下有 bug），改由 JS 端自行过滤
+  pickerEl.removeAttribute('accept');
+  pickerEl.setAttribute('multiple', '');
+  document.getElementById('hintText').innerHTML =
+    'iOS：请从「文件」App 选择本地/云盘中的 MP3 与 SRT/LRC（Apple Music 库不支持）。';
+}
+
+/* ===== 主逻辑 ===== */
 const $ = s => document.querySelector(s);
 const player = $('#player'), bar = $('#bar');
 const playBtn = $('#playPause'), curEl = $('#cur'), durEl = $('#dur');
@@ -182,6 +200,7 @@ picker.onchange = async (e)=>{
 
   // 加载第一对
   await loadPair(pairs[0]);
+  pairSelect.value = '0';
 
   // 切换其它配对
   pairSelect.onchange = async () => {
@@ -202,8 +221,6 @@ async function loadPair(group){
   }else{
     cues = []; lyricsWrap.innerHTML = '<div class="line">（无字幕）</div>';
   }
-  // 让下拉选中当前
-  [...pairSelect.options].forEach((o,i)=>{ if(i===0) o.selected=true; });
 }
 </script>
 </body>
