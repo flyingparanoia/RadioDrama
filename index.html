@@ -2,49 +2,78 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>字幕自动配对播放器（MP3 + SRT/LRC）</title>
 <style>
-  :root{--bg:#0f1115;--panel:#1a1d24;--text:#d7dbe7;--muted:#8e97a8;--active:#fff}
+  :root{
+    --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:#0f1115;color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:grid;grid-template-rows:auto 1fr;height:100vh}
-  header{padding:14px 16px;display:grid;gap:10px;grid-template-columns:1fr auto;align-items:center;background:var(--panel);border-bottom:1px solid #222734}
-  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .btn{appearance:none;border:0;border-radius:10px;background:#2a3040;color:#fff;padding:10px 14px;cursor:pointer}
-  .btn:hover{filter:brightness(1.05)}
-  .select{background:#2a3040;color:#dfe7ff;border:0;border-radius:10px;padding:10px 12px}
-  .hint{color:var(--muted);font-size:12px}
-  .time{font-variant-numeric:tabular-nums;color:#aab2c2;min-width:88px;text-align:right}
-  main{display:grid;grid-template-columns:420px 1fr;height:100%}
-  @media (max-width:900px){main{grid-template-columns:1fr}}
-  .left{border-right:1px solid #222734;padding:16px;display:grid;gap:12px;align-content:start}
-  .progress{width:100%;height:6px;background:#222735;border-radius:999px;overflow:hidden}
-  .bar{height:100%;width:0;background:#5c7cfa;transition:width .2s linear}
-  .right{position:relative;overflow:hidden}
-  .lyrics{position:absolute;inset:0;overflow:auto;scroll-behavior:smooth;padding:28px 16px 100px}
-  .line{padding:8px 12px;margin:2px 0;border-radius:12px;cursor:pointer;transition:.12s;opacity:.9}
+  body{
+    margin:0; color:var(--text); background:#0f1115;
+    font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    display:grid; grid-template-rows:auto 1fr; height:100dvh; padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{
+    position:sticky; top:0; z-index:2;
+    padding:12px 16px; display:grid; gap:8px; grid-template-columns:1fr auto;
+    align-items:center; background:var(--panel); border-bottom:1px solid #222734;
+  }
+  .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .btn{appearance:none; border:0; border-radius:10px; background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .select{background:#2a3040; color:#dfe7ff; border:0; border-radius:10px; padding:10px 12px}
+  .hint{color:var(--muted); font-size:12px}
+  .time{font-variant-numeric:tabular-nums; color:#aab2c2}
+  .timebox{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; min-width:140px}
+  .timebox .sep::before{content:"/"; opacity:.6}
+  main{display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0}
+  @media (max-width:900px){ main{grid-template-columns:1fr} }
+  .left{border-right:1px solid #222734; padding:16px; display:grid; gap:12px; align-content:start; min-width:0}
+  .right{position:relative; overflow:hidden; min-width:0}
+  .lyrics{position:absolute; inset:0; overflow:auto; scroll-behavior:smooth; padding:24px 14px calc(32px + env(safe-area-inset-bottom))}
+  .progress{width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden}
+  .bar{height:100%; width:0; background:#5c7cfa; transition:width .2s linear}
+  .line{padding:10px 12px; margin:2px 0; border-radius:12px; cursor:pointer; transition:.12s; opacity:.9}
   .line:hover{background:#1f2432}
-  .line.future{color:#8e97a8;opacity:.7}
+  .line.future{color:#8e97a8; opacity:.7}
   .line.past{color:#c2c8d8}
-  .line.active{background:#2c3345;color:#fff;transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.25),inset 0 0 0 1px rgba(255,255,255,.04)}
+  .line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
+  /* 窄屏优化 */
+  @media (max-width:600px){
+    header{grid-template-columns:1fr}
+    .controls{gap:8px}
+    .btn{padding:9px 12px}
+    .lyrics{padding:16px 12px calc(28px + env(safe-area-inset-bottom))}
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="controls">
     <button class="btn" id="playPause">▶︎ / ⏸</button>
-    <span class="time" id="cur">00:00</span> /
-    <span class="time" id="dur">00:00</span>
+    <span class="timebox">
+      <span class="time" id="cur">00:00</span>
+      <span class="sep"></span>
+      <span class="time" id="dur">00:00</span>
+    </span>
     <div style="flex:1"></div>
 
-    <!-- 一次性选择多个文件；自动配对同名 mp3 + srt/lrc -->
-    <label class="btn" for="picker">选择文件</label>
-    <input id="picker" type="file" multiple
+    <!-- 电脑端：选文件夹（若支持） -->
+    <label class="btn" id="pickFolderBtn" for="pickerFolder" style="display:none">选择文件夹</label>
+    <input id="pickerFolder" type="file" webkitdirectory directory multiple
            accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
+
+    <!-- 通用：多选文件（iOS/Android/桌面都可用） -->
+    <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
+    <input id="pickerFiles" type="file" multiple
+           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
+
     <select id="pairSelect" class="select" style="display:none"></select>
   </div>
   <div class="hint" id="hintText">
-    桌面浏览器可一次选多个 <b>xxx.mp3</b> 与 <b>xxx.srt/.lrc</b>，iOS 需从「文件」App 选择（Apple Music 库不支持）。
+    电脑端可“选择文件夹”或多选文件；iOS 需从“文件”App 选择（Apple Music 库不支持）。
   </div>
 </header>
 
@@ -60,33 +89,29 @@
 </main>
 
 <script>
-/* ===== iOS 兼容补丁：放开 accept，允许把 MP3 选进来 ===== */
-const pickerEl = document.getElementById('picker');
-const isIOS = (() => {
-  const ua = navigator.userAgent || '';
-  const isiOSDev = /iPad|iPhone|iPod/.test(ua);
-  // iPadOS Safari 报 MacIntel + 触控点 > 1
-  const isIPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-  return isiOSDev || isIPadOS;
-})();
-if (isIOS) {
-  // iOS 上移除 accept 过滤（Safari 在混合类型下有 bug），改由 JS 端自行过滤
-  pickerEl.removeAttribute('accept');
-  pickerEl.setAttribute('multiple', '');
-  document.getElementById('hintText').innerHTML =
-    'iOS：请从「文件」App 选择本地/云盘中的 MP3 与 SRT/LRC（Apple Music 库不支持）。';
-}
+/* ===== 平台能力检测：iOS、是否支持目录选择 ===== */
+const ua = navigator.userAgent || "";
+const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const canPickDir = "webkitdirectory" in document.createElement("input") && !isIOS;
 
-/* ===== 主逻辑 ===== */
+/* ===== 元素引用 ===== */
 const $ = s => document.querySelector(s);
 const player = $('#player'), bar = $('#bar');
 const playBtn = $('#playPause'), curEl = $('#cur'), durEl = $('#dur');
-const picker = $('#picker'), pairSelect = $('#pairSelect');
-const lyricsWrap = $('#lyrics');
+const pairSelect = $('#pairSelect'), lyricsWrap = $('#lyrics');
+const pickFolderBtn = $('#pickFolderBtn'), pickerFolder = $('#pickerFolder');
+const pickFilesBtn = $('#pickFilesBtn'), pickerFiles = $('#pickerFiles');
 
+/* ===== 根据平台调整 UI / accept ===== */
+if (canPickDir) pickFolderBtn.style.display = 'inline-block';
+if (isIOS) {
+  // 放开 accept，避免 iOS Safari 的混合类型过滤 bug
+  pickerFiles.removeAttribute('accept');
+  $('#hintText').textContent = 'iOS：请从“文件”App 选择本地/云盘中的 MP3 与 SRT/LRC（Apple Music 库不支持）。';
+}
+
+/* ===== 工具函数 ===== */
 let cues = [], activeIdx = -1;
-
-/* ------------ 工具 ------------ */
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
 const ext = f => f.name.split('.').pop().toLowerCase();
 const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
@@ -94,30 +119,30 @@ const isAudio = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-/* ------------ 解析字幕 ------------ */
+/* ===== 字幕解析 ===== */
 function parseLRC(text){
-  const lines = text.replace(/\r/g,'').split('\n'); const cues=[];
+  const lines = text.replace(/\r/g,'').split('\n'); const list=[];
   for(const raw of lines){
     const ts=[...raw.matchAll(/\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)];
     if(!ts.length) continue;
     const lyric = raw.replace(/\[[^\]]+\]/g,'').trim(); if(!lyric) continue;
-    for(const m of ts){ const mm=+m[1], ss=+m[2], ms=m[3]? +m[3].padEnd(3,'0'):0; cues.push({start:mm*60+ss+ms/1000, text:lyric});}
+    for(const m of ts){ const mm=+m[1], ss=+m[2], ms=m[3]? +m[3].padEnd(3,'0'):0; list.push({start:mm*60+ss+ms/1000, text:lyric});}
   }
-  return cues.sort((a,b)=>a.start-b.start);
+  return list.sort((a,b)=>a.start-b.start);
 }
 function parseSRT(text){
-  const blocks = text.replace(/\r/g,'').split(/\n\s*\n/), cues=[];
+  const blocks = text.replace(/\r/g,'').split(/\n\s*\n/), list=[];
   const re=/(\d\d?):(\d\d):(\d\d),(\d{3})\s*-->\s*(\d\d?):(\d\d):(\d\d),(\d{3})/;
   for(const b of blocks){
     const lines=b.split('\n').filter(Boolean); if(lines.length<2) continue;
     const m=lines[1].match(re); const t=lines.slice(2).join(' ').replace(/<[^>]+>/g,'').trim(); if(!m||!t) continue;
-    const start=(+m[1])*3600+(+m[2])*60+(+m[3])+(+m[4])/1000; cues.push({start,text:t});
+    const start=(+m[1])*3600+(+m[2])*60+(+m[3])+(+m[4])/1000; list.push({start,text:t});
   }
-  return cues.sort((a,b)=>a.start-b.start);
+  return list.sort((a,b)=>a.start-b.start);
 }
 function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2}:\d{2}/.test(text) ? parseSRT(text) : parseLRC(text); }
 
-/* ------------ 渲染 & 高亮 ------------ */
+/* ===== 渲染与高亮 ===== */
 function render(cuesList){
   lyricsWrap.innerHTML='';
   cuesList.forEach((c,i)=>{
@@ -149,7 +174,7 @@ function setActiveByTime(t,center=false){
   setActive(ans,center);
 }
 
-/* ------------ 播放器事件 ------------ */
+/* ===== 播放器事件 ===== */
 playBtn.onclick=()=> player.paused ? player.play() : player.pause();
 player.ontimeupdate=()=>{
   curEl.textContent=fmt(player.currentTime);
@@ -164,12 +189,11 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='Enter'){ const t=cues[Math.max(0,activeIdx)].start; player.currentTime=t+0.02; player.play(); }
 });
 
-/* ------------ 自动配对：一次选择，多对匹配 ------------ */
-picker.onchange = async (e)=>{
-  const files = Array.from(e.target.files||[]);
+/* ===== 选择文件 / 文件夹并自动配对 ===== */
+async function handleFiles(fileList){
+  const files = Array.from(fileList||[]);
   if(!files.length) return;
 
-  // 以“去扩展名的小写文件名”分组
   const groups = new Map();
   for(const f of files){
     const ex = ext(f), st = stem(f);
@@ -177,37 +201,26 @@ picker.onchange = async (e)=>{
     if(!groups.has(st)) groups.set(st,{audio:null, lyric:null, name:st});
     const g = groups.get(st);
     if(isAudio(ex) && !g.audio) g.audio=f;
-    if(isLyric(ex)) { // srt 优先于 lrc/txt
-      if(!g.lyric || /\.srt$/i.test(f.name)) g.lyric=f;
-    }
+    if(isLyric(ex)) { if(!g.lyric || /\.srt$/i.test(f.name)) g.lyric=f; }
   }
-
-  // 收集可用的配对或单边
   const pairs = [...groups.values()].filter(g=>g.audio||g.lyric);
   if(!pairs.length){ alert('未找到可用的 MP3 或 字幕文件'); return; }
 
-  // 若有多对，构建选择器
   pairSelect.innerHTML='';
   pairs.forEach((g,i)=>{
     const label = `${g.name}` +
       (g.audio? ` [🎵 ${g.audio.name}]` : '') +
       (g.lyric? ` [📝 ${g.lyric.name}]` : ' [无字幕]');
-    const opt=document.createElement('option');
-    opt.value=String(i); opt.textContent=label;
-    pairSelect.appendChild(opt);
+    const opt=document.createElement('option'); opt.value=String(i); opt.textContent=label; pairSelect.appendChild(opt);
   });
   pairSelect.style.display = pairs.length>1 ? 'inline-block':'none';
 
-  // 加载第一对
-  await loadPair(pairs[0]);
-  pairSelect.value = '0';
+  await loadPair(pairs[0]); pairSelect.value='0';
+  pairSelect.onchange = async ()=>{ const idx=+pairSelect.value; await loadPair(pairs[idx]); };
+}
 
-  // 切换其它配对
-  pairSelect.onchange = async () => {
-    const idx = +pairSelect.value;
-    await loadPair(pairs[idx]);
-  };
-};
+pickerFiles.onchange = (e)=> handleFiles(e.target.files);
+pickerFolder.onchange = (e)=> handleFiles(e.target.files);
 
 async function loadPair(group){
   if(group.audio){
