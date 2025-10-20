@@ -492,13 +492,20 @@ async function loadPair(group, opts={}){
   });
   playBtn.addEventListener('touchend', ()=> { if (pressTimer) clearTimeout(pressTimer); });
 
-  /* === 定时暂停播放（按钮触发版） === */
+/* === 定时暂停播放（按钮触发版 · 无重复弹窗） === */
 let stopTimer = null;
 const timerBtn = document.getElementById('timerBtn');
 
-timerBtn.addEventListener('click', ()=>{
-  clearStopTimer();
-  const minutes = 10; // 固定10分钟
+function clearStopTimer(silent = true){
+  if (stopTimer) {
+    clearTimeout(stopTimer);
+    stopTimer = null;
+    if (!silent) alert('已取消定时暂停。'); // 仅在需要时才提示
+  }
+}
+
+function startStopTimer(minutes){
+  clearStopTimer(true); // 静默清掉旧定时，避免二次弹窗
   stopTimer = setTimeout(()=>{
     if (!player.paused) {
       player.pause();
@@ -507,15 +514,15 @@ timerBtn.addEventListener('click', ()=>{
     stopTimer = null;
   }, minutes * 60 * 1000);
   alert(`将在 ${minutes} 分钟后暂停播放。`);
+}
+
+timerBtn.addEventListener('click', ()=>{
+  const minutes = 10; // 固定 10 分钟
+  startStopTimer(minutes); // 始终“重置为 10 分钟后暂停”，只弹一次
 });
 
-function clearStopTimer(){
-  if (stopTimer) {
-    clearTimeout(stopTimer);
-    stopTimer = null;
-    alert('已取消定时暂停。');
-  }
-}
+// 手动暂停 => 静默取消定时，避免到点弹窗
+player.addEventListener('pause', () => { clearStopTimer(true); });
 
   
   playBtn.addEventListener('dblclick', async ()=> {
