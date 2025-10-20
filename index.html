@@ -95,6 +95,10 @@
            accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
 
     <select id="pairSelect" class="select" style="display:none"></select>
+    
+    <!-- ✅ 新增：10分钟定时暂停按钮 -->
+    <button class="btn" id="timerBtn">定时暂停 10 分钟</button>
+    
   </div>
   <p class="hint" id="hintText">
     电脑端可“选择文件夹”或多选文件；iOS 需从“文件”App 选择（Apple Music 库不支持）。
@@ -487,6 +491,33 @@ async function loadPair(group, opts={}){
     }, 800);
   });
   playBtn.addEventListener('touchend', ()=> { if (pressTimer) clearTimeout(pressTimer); });
+
+  /* === 定时暂停播放（按钮触发版） === */
+let stopTimer = null;
+const timerBtn = document.getElementById('timerBtn');
+
+timerBtn.addEventListener('click', ()=>{
+  clearStopTimer();
+  const minutes = 10; // 固定10分钟
+  stopTimer = setTimeout(()=>{
+    if (!player.paused) {
+      player.pause();
+      alert(`已到 ${minutes} 分钟，播放已暂停。`);
+    }
+    stopTimer = null;
+  }, minutes * 60 * 1000);
+  alert(`将在 ${minutes} 分钟后暂停播放。`);
+});
+
+function clearStopTimer(){
+  if (stopTimer) {
+    clearTimeout(stopTimer);
+    stopTimer = null;
+    alert('已取消定时暂停。');
+  }
+}
+
+  
   playBtn.addEventListener('dblclick', async ()=> {
     if (confirm('清除本地缓存与续播进度？')) {
       await clearCache(true);
