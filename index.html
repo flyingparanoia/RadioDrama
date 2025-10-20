@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>字幕自动配对播放器（MP3 + SRT/LRC）</title>
+
+<!-- ✅ 在标题附近添加 favicon 缩略图 -->
+<link rel="icon" href="thumbnail.png" type="image/png" />
+<link rel="apple-touch-icon" href="thumbnail.png" />
+<!-- 或者使用 ICO 格式 -->
+<!-- <link rel="icon" href="favicon.ico" type="image/x-icon" /> -->
+
+  
 <style>
   :root{
     --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
@@ -135,6 +143,141 @@ const isAudio = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
+/* ===================== 本地缓存（IndexedDB + localStorage） ===================== */
+const DB_NAME = 'mp3srt-cache';
+const STORE = 'files';
+const META_KEY = 'mp3srt:lastMeta'; // {name, audioName, audioType, lyricName, lyricType}
+
+/* 可配置：最大允许缓存的音频体积（MB）——超过则跳过音频缓存，仅缓存字幕 */
+const MAX_AUDIO_MB = 120;
+
+/* 播放进度存储 */
+const POS_KEY = 'mp3srt:lastPosV1';
+let currentAudioId = null;
+
+/* Storage helpers */
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(key, blob){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(blob, key);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function idbGet(key){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE, 'readonly');
+    const r = tx.objectStore(STORE).get(key);
+    r.onsuccess = ()=>resolve(r.result || null);
+    r.onerror = ()=>reject(r.error);
+  });
+}
+async function idbDel(key){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = ()=>resolve();
+    tx.onerror = ()=>reject(tx.error);
+  });
+}
+async function persistStorageIfPossible(){
+  if (navigator.storage && navigator.storage.persist) {
+    try { await navigator.storage.persist(); } catch {}
+  }
+}
+async function reportStorage(){
+  if (!navigator.storage || !navigator.storage.estimate) return;
+  try {
+    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+    const usedMB = (usage / (1024*1024)).toFixed(1);
+    const quotaMB = quota ? (quota / (1024*1024)).toFixed(1) : '未知';
+    console.log(`Storage usage: ${usedMB}MB / ${quotaMB}MB`);
+    if (quota && usage / quota > 0.8) {
+      await idbDel('audioBlob'); // 接近上限：清理音频副本
+      console.warn('接近存储上限，已自动清除音频副本，仅保留字幕缓存。');
+    }
+  } catch {}
+}
+
+/* 保存“上一组”文件（覆盖式） */
+async function saveCacheFromGroup(group){
+  try {
+    await persistStorageIfPossible();
+    const meta = { name: group.name };
+
+    if (group.audio) {
+      const audioSizeMB = (group.audio.size || 0) / (1024*1024);
+      if (audioSizeMB <= MAX_AUDIO_MB) {
+        await idbPut('audioBlob', group.audio);
+        meta.audioName = group.audio.name;
+        meta.audioType = group.audio.type || 'audio/mpeg';
+      } else {
+        // 超限：不缓存音频
+        await idbDel('audioBlob');
+        meta.audioName = `[skipped>${MAX_AUDIO_MB}MB] ${group.audio.name}`;
+      }
+    } else {
+      await idbDel('audioBlob');
+    }
+
+    if (group.lyric) {
+      await idbPut('lyricBlob', group.lyric);
+      meta.lyricName = group.lyric.name;
+      meta.lyricType = group.lyric.type || 'text/plain';
+    } else {
+      await idbDel('lyricBlob');
+    }
+
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+  } catch (e) {
+    console.warn('保存缓存失败：', e);
+  }
+}
+
+async function clearCache(all=true){
+  try {
+    await idbDel('audioBlob');
+    await idbDel('lyricBlob');
+    localStorage.removeItem(META_KEY);
+    if (all) localStorage.removeItem(POS_KEY); // 同步清掉进度
+  } catch (e) {
+    console.warn('清除缓存失败：', e);
+  }
+}
+
+/** 页面启动时尝试从缓存恢复上一组 */
+async function tryRestoreFromCache(){
+  const metaRaw = localStorage.getItem(META_KEY);
+  if (!metaRaw) return false;
+  let meta;
+  try { meta = JSON.parse(metaRaw); } catch { return false; }
+
+  const audioBlob = await idbGet('audioBlob');
+  const lyricBlob = await idbGet('lyricBlob');
+  if (!audioBlob && !lyricBlob) return false;
+
+  const group = {
+    name: meta.name || 'last',
+    audio: audioBlob ? new File([audioBlob], meta.audioName || 'audio.mp3', { type: meta.audioType || audioBlob.type || 'audio/mpeg' }) : null,
+    lyric: lyricBlob ? new File([lyricBlob], meta.lyricName || 'subtitle.srt', { type: meta.lyricType || lyricBlob.type || 'text/plain' }) : null,
+  };
+
+  await loadPair(group, {fromCache:true});
+  $('#hintText').textContent = '已自动恢复上次播放的文件（本地缓存）。如需更换，请点击“选择文件”。';
+  return true;
+}
+
 /* ===== 字幕解析 ===== */
 function parseLRC(text){
   const lines = text.replace(/\r/g,'').split('\n'); const list=[];
@@ -205,6 +348,44 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='Enter'){ const t=cues[Math.max(0,activeIdx)].start; player.currentTime=t+0.02; player.play(); }
 });
 
+/* ===== 进度记忆：localStorage（按“文件名|大小”区分） ===== */
+function getAudioId(file){
+  if (!file) return null;
+  const size = typeof file.size === 'number' ? file.size : 0;
+  return `${file.name}|${size}`;
+}
+function savePlayPos(){
+  if (!currentAudioId || !isFinite(player.duration)) return;
+  try {
+    const posObj = { id: currentAudioId, t: Math.max(0, Math.min(player.currentTime, player.duration || 0)), ts: Date.now() };
+    localStorage.setItem(POS_KEY, JSON.stringify(posObj));
+  } catch {}
+}
+function readPlayPos(id){
+  try {
+    const raw = localStorage.getItem(POS_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (obj && obj.id === id && typeof obj.t === 'number') return obj.t;
+  } catch {}
+  return null;
+}
+function throttle(fn, wait=3000){
+  let last = 0; let timer = null;
+  return function(){
+    const now = Date.now();
+    const remain = wait - (now - last);
+    if (remain <= 0){
+      last = now; fn();
+    } else if (!timer){
+      timer = setTimeout(()=>{ timer = null; last = Date.now(); fn(); }, remain);
+    }
+  };
+}
+const savePlayPosThrottled = throttle(savePlayPos, 3000);
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') savePlayPos(); });
+window.addEventListener('pagehide', savePlayPos);
+
 /* ===== 选择文件 / 文件夹并自动配对 ===== */
 async function handleFiles(fileList){
   const files = Array.from(fileList||[]);
@@ -238,11 +419,16 @@ async function handleFiles(fileList){
 pickerFiles.onchange = (e)=> handleFiles(e.target.files);
 pickerFolder.onchange = (e)=> handleFiles(e.target.files);
 
-async function loadPair(group){
+/** 加载一组文件并渲染；opts.fromCache 用于提示文本控制与自动播放 */
+async function loadPair(group, opts={}){
+  // 设置音频源
   if(group.audio){
     player.src = URL.createObjectURL(group.audio);
-    try{ await player.play(); }catch{}
+  } else {
+    player.removeAttribute('src');
   }
+
+  // 设置字幕
   if(group.lyric){
     const text = await group.lyric.text();
     cues = pickParser(group.lyric.name, text);
@@ -250,7 +436,64 @@ async function loadPair(group){
   }else{
     cues = []; lyricsWrap.innerHTML = '<div class="line">（无字幕）</div>';
   }
+
+  // 当前音频 ID（用于进度记忆）
+  currentAudioId = group.audio ? getAudioId(group.audio) : null;
+
+  // 元数据就绪后恢复进度
+  const restore = async () => {
+    if (!currentAudioId) {
+      if (opts.fromCache){ try { await player.play(); } catch {} }
+      return;
+    }
+    const t = readPlayPos(currentAudioId);
+    if (typeof t === 'number' && isFinite(player.duration) && t < player.duration - 0.5){
+      try { player.currentTime = t; } catch {}
+      if (opts.fromCache){ try { await player.play(); } catch {} }
+    } else if (opts.fromCache){
+      try { await player.play(); } catch {}
+    }
+  };
+  if (isFinite(player.duration) && player.duration > 0){
+    await restore();
+  } else {
+    player.addEventListener('loadedmetadata', restore, { once: true });
+  }
+
+  // 覆盖保存“上一组”本地副本
+  try { await saveCacheFromGroup(group); } catch {}
+
+  // 绑定节流存储
+  player.removeEventListener('timeupdate', savePlayPosThrottled);
+  player.addEventListener('timeupdate', savePlayPosThrottled);
 }
+
+/* ===================== 启动：尝试恢复，绑定隐藏清理手势 ===================== */
+(async () => {
+  await reportStorage();
+  const restored = await tryRestoreFromCache();
+  if (!restored) {
+    $('#hintText').textContent = '提示：选择一次 MP3 和字幕后，将自动保存为“上次播放”，并记住播放进度；下次打开会自动恢复。';
+  }
+
+  // 长按或双击播放键：清理缓存+进度
+  let pressTimer = null;
+  playBtn.addEventListener('touchstart', () => {
+    pressTimer = setTimeout(async () => {
+      if (confirm('清除本地缓存与续播进度？')) {
+        await clearCache(true);
+        alert('已清除缓存与进度。');
+      }
+    }, 800);
+  });
+  playBtn.addEventListener('touchend', ()=> { if (pressTimer) clearTimeout(pressTimer); });
+  playBtn.addEventListener('dblclick', async ()=> {
+    if (confirm('清除本地缓存与续播进度？')) {
+      await clearCache(true);
+      alert('已清除缓存与进度。');
+    }
+  });
+})();
 </script>
 </body>
 </html>
