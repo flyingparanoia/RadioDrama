@@ -4,14 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>字幕自动配对播放器（MP3 + SRT/LRC）</title>
-
-<!-- ✅ 在标题附近添加 favicon 缩略图 -->
 <link rel="icon" href="thumbnail.png" type="image/png" />
 <link rel="apple-touch-icon" href="thumbnail.png" />
-<!-- 或者使用 ICO 格式 -->
-<!-- <link rel="icon" href="favicon.ico" type="image/x-icon" /> -->
+<!-- 引入 jsmediatags 库用于提取封面 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
-  
 <style>
   :root{
     --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
@@ -36,26 +33,33 @@
   .time{font-variant-numeric:tabular-nums; color:#aab2c2}
   .timebox{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; min-width:140px}
   .timebox .sep::before{content:"/"; opacity:.6}
-
-  /* --- 主体区域 --- */
+  
+  /* 封面样式 */
+  .cover-wrapper{
+    display:flex; justify-content:center; align-items:center;
+    margin-bottom:12px; min-height:60px;
+  }
+  .cover-img{
+    max-width:150px; max-height:150px; border-radius:8px;
+    box-shadow:0 4px 12px rgba(0,0,0,.3); display:none;
+  }
+  .cover-img.show{display:block}
+  
   main{
     display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0;
   }
-  /* ✅ 窄屏：两行布局，第二行占满剩余高度，去掉中间“空白带” */
   @media (max-width:900px){
     main{
       grid-template-columns:1fr;
-      grid-template-rows:auto 1fr; /* 关键：上块自高，下块填满 */
+      grid-template-rows:auto 1fr;
     }
   }
-
   .left{border-right:1px solid #222734; padding:12px 16px 8px; display:grid; gap:10px; align-content:start; min-width:0}
   .right{position:relative; overflow:hidden; min-width:0; min-height:0}
   .lyrics{
     position:absolute; inset:0; overflow:auto; scroll-behavior:smooth;
     padding:18px 14px calc(28px + env(safe-area-inset-bottom));
   }
-
   .progress{width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden}
   .bar{height:100%; width:0; background:#5c7cfa; transition:width .2s linear}
   .line{padding:10px 12px; margin:2px 0; border-radius:12px; cursor:pointer; transition:.12s; opacity:.9}
@@ -63,13 +67,13 @@
   .line.future{color:#8e97a8; opacity:.7}
   .line.past{color:#c2c8d8}
   .line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
-
-  /* 窄屏额外收紧 */
+  
   @media (max-width:600px){
     header{grid-template-columns:1fr}
     .controls{gap:8px}
     .btn{padding:9px 12px}
     .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
+    .cover-img{max-width:120px; max-height:120px}
   }
 </style>
 </head>
@@ -83,30 +87,25 @@
       <span class="time" id="dur">00:00</span>
     </span>
     <div style="flex:1"></div>
-
-    <!-- 电脑端：选文件夹（若支持） -->
     <label class="btn" id="pickFolderBtn" for="pickerFolder" style="display:none">选择文件夹</label>
     <input id="pickerFolder" type="file" webkitdirectory directory multiple
            accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
-
-    <!-- 通用：多选文件（iOS/Android/桌面都可用） -->
     <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
     <input id="pickerFiles" type="file" multiple
            accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
-
     <select id="pairSelect" class="select" style="display:none"></select>
-    
-    <!-- ✅ 新增：10分钟定时暂停按钮 -->
     <button class="btn" id="timerBtn">定时暂停 10 分钟</button>
-    
   </div>
   <p class="hint" id="hintText">
-    电脑端可“选择文件夹”或多选文件；iOS 需从“文件”App 选择（Apple Music 库不支持）。
+    电脑端可"选择文件夹"或多选文件；iOS 需从"文件"App 选择（Apple Music 库不支持）。
   </p>
 </header>
-
 <main>
   <section class="left">
+    <!-- 封面显示区域 -->
+    <div class="cover-wrapper">
+      <img id="coverImg" class="cover-img" alt="专辑封面" />
+    </div>
     <audio id="player" preload="metadata" controls style="width:100%"></audio>
     <div class="progress"><div class="bar" id="bar"></div></div>
     <p class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</p>
@@ -117,28 +116,24 @@
 </main>
 
 <script>
-/* ===== 平台能力检测：iOS、是否支持目录选择 ===== */
 const ua = navigator.userAgent || "";
 const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const canPickDir = "webkitdirectory" in document.createElement("input") && !isIOS;
 
-/* ===== 元素引用 ===== */
 const $ = s => document.querySelector(s);
 const player = $('#player'), bar = $('#bar');
 const playBtn = $('#playPause'), curEl = $('#cur'), durEl = $('#dur');
 const pairSelect = $('#pairSelect'), lyricsWrap = $('#lyrics');
 const pickFolderBtn = $('#pickFolderBtn'), pickerFolder = $('#pickerFolder');
 const pickFilesBtn = $('#pickFilesBtn'), pickerFiles = $('#pickerFiles');
+const coverImg = $('#coverImg');
 
-/* ===== 根据平台调整 UI / accept ===== */
 if (canPickDir) pickFolderBtn.style.display = 'inline-block';
 if (isIOS) {
-  // 放开 accept，避免 iOS Safari 的混合类型过滤 bug
   pickerFiles.removeAttribute('accept');
-  $('#hintText').textContent = 'iOS：请从“文件”App 选择本地/云盘中的 MP3 与 SRT/LRC（Apple Music 库不支持）。';
+  $('#hintText').textContent = 'iOS：请从"文件"App 选择本地/云盘中的 MP3 与 SRT/LRC（Apple Music 库不支持）。';
 }
 
-/* ===== 工具函数 ===== */
 let cues = [], activeIdx = -1;
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
 const ext = f => f.name.split('.').pop().toLowerCase();
@@ -147,19 +142,39 @@ const isAudio = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-/* ===================== 本地缓存（IndexedDB + localStorage） ===================== */
+/* ===== 提取封面 ===== */
+function extractCover(file){
+  coverImg.classList.remove('show');
+  if (!file || !window.jsmediatags) return;
+  
+  window.jsmediatags.read(file, {
+    onSuccess: (tag) => {
+      const { tags } = tag;
+      if (tags.picture) {
+        const { data, format } = tags.picture;
+        let base64String = "";
+        for (let i = 0; i < data.length; i++) {
+          base64String += String.fromCharCode(data[i]);
+        }
+        const dataUrl = `data:${format};base64,${window.btoa(base64String)}`;
+        coverImg.src = dataUrl;
+        coverImg.classList.add('show');
+      }
+    },
+    onError: (error) => {
+      console.log('封面提取失败:', error);
+    }
+  });
+}
+
+/* ===== 本地缓存 ===== */
 const DB_NAME = 'mp3srt-cache';
 const STORE = 'files';
-const META_KEY = 'mp3srt:lastMeta'; // {name, audioName, audioType, lyricName, lyricType}
-
-/* 可配置：最大允许缓存的音频体积（MB）——超过则跳过音频缓存，仅缓存字幕 */
+const META_KEY = 'mp3srt:lastMeta';
 const MAX_AUDIO_MB = 120;
-
-/* 播放进度存储 */
 const POS_KEY = 'mp3srt:lastPosV1';
 let currentAudioId = null;
 
-/* Storage helpers */
 function idbOpen(){
   return new Promise((resolve, reject)=>{
     const req = indexedDB.open(DB_NAME, 1);
@@ -168,6 +183,7 @@ function idbOpen(){
     req.onerror = () => reject(req.error);
   });
 }
+
 async function idbPut(key, blob){
   const db = await idbOpen();
   return new Promise((resolve, reject)=>{
@@ -177,6 +193,7 @@ async function idbPut(key, blob){
     tx.onerror = ()=>reject(tx.error);
   });
 }
+
 async function idbGet(key){
   const db = await idbOpen();
   return new Promise((resolve, reject)=>{
@@ -186,6 +203,7 @@ async function idbGet(key){
     r.onerror = ()=>reject(r.error);
   });
 }
+
 async function idbDel(key){
   const db = await idbOpen();
   return new Promise((resolve, reject)=>{
@@ -195,11 +213,13 @@ async function idbDel(key){
     tx.onerror = ()=>reject(tx.error);
   });
 }
+
 async function persistStorageIfPossible(){
   if (navigator.storage && navigator.storage.persist) {
     try { await navigator.storage.persist(); } catch {}
   }
 }
+
 async function reportStorage(){
   if (!navigator.storage || !navigator.storage.estimate) return;
   try {
@@ -208,18 +228,16 @@ async function reportStorage(){
     const quotaMB = quota ? (quota / (1024*1024)).toFixed(1) : '未知';
     console.log(`Storage usage: ${usedMB}MB / ${quotaMB}MB`);
     if (quota && usage / quota > 0.8) {
-      await idbDel('audioBlob'); // 接近上限：清理音频副本
+      await idbDel('audioBlob');
       console.warn('接近存储上限，已自动清除音频副本，仅保留字幕缓存。');
     }
   } catch {}
 }
 
-/* 保存“上一组”文件（覆盖式） */
 async function saveCacheFromGroup(group){
   try {
     await persistStorageIfPossible();
     const meta = { name: group.name };
-
     if (group.audio) {
       const audioSizeMB = (group.audio.size || 0) / (1024*1024);
       if (audioSizeMB <= MAX_AUDIO_MB) {
@@ -227,14 +245,12 @@ async function saveCacheFromGroup(group){
         meta.audioName = group.audio.name;
         meta.audioType = group.audio.type || 'audio/mpeg';
       } else {
-        // 超限：不缓存音频
         await idbDel('audioBlob');
         meta.audioName = `[skipped>${MAX_AUDIO_MB}MB] ${group.audio.name}`;
       }
     } else {
       await idbDel('audioBlob');
     }
-
     if (group.lyric) {
       await idbPut('lyricBlob', group.lyric);
       meta.lyricName = group.lyric.name;
@@ -242,7 +258,6 @@ async function saveCacheFromGroup(group){
     } else {
       await idbDel('lyricBlob');
     }
-
     localStorage.setItem(META_KEY, JSON.stringify(meta));
   } catch (e) {
     console.warn('保存缓存失败：', e);
@@ -254,31 +269,27 @@ async function clearCache(all=true){
     await idbDel('audioBlob');
     await idbDel('lyricBlob');
     localStorage.removeItem(META_KEY);
-    if (all) localStorage.removeItem(POS_KEY); // 同步清掉进度
+    if (all) localStorage.removeItem(POS_KEY);
   } catch (e) {
     console.warn('清除缓存失败：', e);
   }
 }
 
-/** 页面启动时尝试从缓存恢复上一组 */
 async function tryRestoreFromCache(){
   const metaRaw = localStorage.getItem(META_KEY);
   if (!metaRaw) return false;
   let meta;
   try { meta = JSON.parse(metaRaw); } catch { return false; }
-
   const audioBlob = await idbGet('audioBlob');
   const lyricBlob = await idbGet('lyricBlob');
   if (!audioBlob && !lyricBlob) return false;
-
   const group = {
     name: meta.name || 'last',
     audio: audioBlob ? new File([audioBlob], meta.audioName || 'audio.mp3', { type: meta.audioType || audioBlob.type || 'audio/mpeg' }) : null,
     lyric: lyricBlob ? new File([lyricBlob], meta.lyricName || 'subtitle.srt', { type: meta.lyricType || lyricBlob.type || 'text/plain' }) : null,
   };
-
   await loadPair(group, {fromCache:true});
-  $('#hintText').textContent = '已自动恢复上次播放的文件（本地缓存）。如需更换，请点击“选择文件”。';
+  $('#hintText').textContent = '已自动恢复上次播放的文件（本地缓存）。如需更换，请点击"选择文件"。';
   return true;
 }
 
@@ -293,6 +304,7 @@ function parseLRC(text){
   }
   return list.sort((a,b)=>a.start-b.start);
 }
+
 function parseSRT(text){
   const blocks = text.replace(/\r/g,'').split(/\n\s*\n/), list=[];
   const re=/(\d\d?):(\d\d):(\d\d),(\d{3})\s*-->\s*(\d\d?):(\d\d):(\d\d),(\d{3})/;
@@ -303,6 +315,7 @@ function parseSRT(text){
   }
   return list.sort((a,b)=>a.start-b.start);
 }
+
 function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2}:\d{2}/.test(text) ? parseSRT(text) : parseLRC(text); }
 
 /* ===== 渲染与高亮 ===== */
@@ -317,6 +330,7 @@ function render(cuesList){
   });
   activeIdx=-1; setActiveByTime(0,true);
 }
+
 function setActive(i,center=false){
   if(i===activeIdx) return; activeIdx=i;
   const lines=[...lyricsWrap.querySelectorAll('.line')];
@@ -330,6 +344,7 @@ function setActive(i,center=false){
     if(center || need) lyricsWrap.scrollTo({top,behavior:'smooth'});
   }
 }
+
 function setActiveByTime(t,center=false){
   if(!cues.length) return;
   let lo=0, hi=cues.length-1, ans=0;
@@ -352,12 +367,13 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='Enter'){ const t=cues[Math.max(0,activeIdx)].start; player.currentTime=t+0.02; player.play(); }
 });
 
-/* ===== 进度记忆：localStorage（按“文件名|大小”区分） ===== */
+/* ===== 进度记忆 ===== */
 function getAudioId(file){
   if (!file) return null;
   const size = typeof file.size === 'number' ? file.size : 0;
   return `${file.name}|${size}`;
 }
+
 function savePlayPos(){
   if (!currentAudioId || !isFinite(player.duration)) return;
   try {
@@ -365,6 +381,7 @@ function savePlayPos(){
     localStorage.setItem(POS_KEY, JSON.stringify(posObj));
   } catch {}
 }
+
 function readPlayPos(id){
   try {
     const raw = localStorage.getItem(POS_KEY);
@@ -374,6 +391,7 @@ function readPlayPos(id){
   } catch {}
   return null;
 }
+
 function throttle(fn, wait=3000){
   let last = 0; let timer = null;
   return function(){
@@ -386,6 +404,7 @@ function throttle(fn, wait=3000){
     }
   };
 }
+
 const savePlayPosThrottled = throttle(savePlayPos, 3000);
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') savePlayPos(); });
 window.addEventListener('pagehide', savePlayPos);
@@ -394,7 +413,6 @@ window.addEventListener('pagehide', savePlayPos);
 async function handleFiles(fileList){
   const files = Array.from(fileList||[]);
   if(!files.length) return;
-
   const groups = new Map();
   for(const f of files){
     const ex = ext(f), st = stem(f);
@@ -406,7 +424,6 @@ async function handleFiles(fileList){
   }
   const pairs = [...groups.values()].filter(g=>g.audio||g.lyric);
   if(!pairs.length){ alert('未找到可用的 MP3 或 字幕文件'); return; }
-
   pairSelect.innerHTML='';
   pairs.forEach((g,i)=>{
     const label = `${g.name}` +
@@ -415,7 +432,6 @@ async function handleFiles(fileList){
     const opt=document.createElement('option'); opt.value=String(i); opt.textContent=label; pairSelect.appendChild(opt);
   });
   pairSelect.style.display = pairs.length>1 ? 'inline-block':'none';
-
   await loadPair(pairs[0]); pairSelect.value='0';
   pairSelect.onchange = async ()=>{ const idx=+pairSelect.value; await loadPair(pairs[idx]); };
 }
@@ -423,16 +439,15 @@ async function handleFiles(fileList){
 pickerFiles.onchange = (e)=> handleFiles(e.target.files);
 pickerFolder.onchange = (e)=> handleFiles(e.target.files);
 
-/** 加载一组文件并渲染；opts.fromCache 用于提示文本控制与自动播放 */
 async function loadPair(group, opts={}){
-  // 设置音频源
   if(group.audio){
     player.src = URL.createObjectURL(group.audio);
+    extractCover(group.audio); // 提取封面
   } else {
     player.removeAttribute('src');
+    coverImg.classList.remove('show');
   }
 
-  // 设置字幕
   if(group.lyric){
     const text = await group.lyric.text();
     cues = pickParser(group.lyric.name, text);
@@ -441,10 +456,8 @@ async function loadPair(group, opts={}){
     cues = []; lyricsWrap.innerHTML = '<div class="line">（无字幕）</div>';
   }
 
-  // 当前音频 ID（用于进度记忆）
   currentAudioId = group.audio ? getAudioId(group.audio) : null;
 
-  // 元数据就绪后恢复进度
   const restore = async () => {
     if (!currentAudioId) {
       if (opts.fromCache){ try { await player.play(); } catch {} }
@@ -458,29 +471,27 @@ async function loadPair(group, opts={}){
       try { await player.play(); } catch {}
     }
   };
+
   if (isFinite(player.duration) && player.duration > 0){
     await restore();
   } else {
     player.addEventListener('loadedmetadata', restore, { once: true });
   }
 
-  // 覆盖保存“上一组”本地副本
   try { await saveCacheFromGroup(group); } catch {}
 
-  // 绑定节流存储
   player.removeEventListener('timeupdate', savePlayPosThrottled);
   player.addEventListener('timeupdate', savePlayPosThrottled);
 }
 
-/* ===================== 启动：尝试恢复，绑定隐藏清理手势 ===================== */
+/* ===== 启动 ===== */
 (async () => {
   await reportStorage();
   const restored = await tryRestoreFromCache();
   if (!restored) {
-    $('#hintText').textContent = '提示：选择一次 MP3 和字幕后，将自动保存为“上次播放”，并记住播放进度；下次打开会自动恢复。';
+    $('#hintText').textContent = '提示：选择一次 MP3 和字幕后，将自动保存为"上次播放"，并记住播放进度；下次打开会自动恢复。';
   }
 
-  // 长按或双击播放键：清理缓存+进度
   let pressTimer = null;
   playBtn.addEventListener('touchstart', () => {
     pressTimer = setTimeout(async () => {
@@ -492,39 +503,32 @@ async function loadPair(group, opts={}){
   });
   playBtn.addEventListener('touchend', ()=> { if (pressTimer) clearTimeout(pressTimer); });
 
-/* === 定时暂停播放（按钮触发版 · 无重复弹窗） === */
-let stopTimer = null;
-const timerBtn = document.getElementById('timerBtn');
-
-function clearStopTimer(silent = true){
-  if (stopTimer) {
-    clearTimeout(stopTimer);
-    stopTimer = null;
-    if (!silent) alert('已取消定时暂停。'); // 仅在需要时才提示
-  }
-}
-
-function startStopTimer(minutes){
-  clearStopTimer(true); // 静默清掉旧定时，避免二次弹窗
-  stopTimer = setTimeout(()=>{
-    if (!player.paused) {
-      player.pause();
-      alert(`已到 ${minutes} 分钟，播放已暂停。`);
+  let stopTimer = null;
+  const timerBtn = document.getElementById('timerBtn');
+  function clearStopTimer(silent = true){
+    if (stopTimer) {
+      clearTimeout(stopTimer);
+      stopTimer = null;
+      if (!silent) alert('已取消定时暂停。');
     }
-    stopTimer = null;
-  }, minutes * 60 * 1000);
-  alert(`将在 ${minutes} 分钟后暂停播放。`);
-}
+  }
+  function startStopTimer(minutes){
+    clearStopTimer(true);
+    stopTimer = setTimeout(()=>{
+      if (!player.paused) {
+        player.pause();
+        alert(`已到 ${minutes} 分钟，播放已暂停。`);
+      }
+      stopTimer = null;
+    }, minutes * 60 * 1000);
+    alert(`将在 ${minutes} 分钟后暂停播放。`);
+  }
+  timerBtn.addEventListener('click', ()=>{
+    const minutes = 10;
+    startStopTimer(minutes);
+  });
+  player.addEventListener('pause', () => { clearStopTimer(true); });
 
-timerBtn.addEventListener('click', ()=>{
-  const minutes = 10; // 固定 10 分钟
-  startStopTimer(minutes); // 始终“重置为 10 分钟后暂停”，只弹一次
-});
-
-// 手动暂停 => 静默取消定时，避免到点弹窗
-player.addEventListener('pause', () => { clearStopTimer(true); });
-
-  
   playBtn.addEventListener('dblclick', async ()=> {
     if (confirm('清除本地缓存与续播进度？')) {
       await clearCache(true);
