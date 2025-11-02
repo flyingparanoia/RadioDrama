@@ -10,96 +10,75 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
 <style>
-:root{
-  --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
-}
-*{box-sizing:border-box}
-body{
-  margin:0; color:var(--text); background:#0f1115;
-  font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-  display:grid; grid-template-rows:auto 1fr; height:100dvh; padding-bottom:env(safe-area-inset-bottom);
-}
-header{
-  position:sticky; top:0; z-index:2;
-  padding:12px 16px; display:grid; gap:8px; grid-template-columns:1fr auto;
-  align-items:center; background:var(--panel); border-bottom:1px solid #222734;
-}
-.controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-.btn{appearance:none; border:0; border-radius:10px; background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer}
-.btn:hover{filter:brightness(1.06)}
-.btn:active{transform:translateY(1px)}
-.select{background:#2a3040; color:#dfe7ff; border:0; border-radius:10px; padding:10px 12px}
-.hint{color:var(--muted); font-size:12px; margin:0}
-.time{font-variant-numeric:tabular-nums; color:#aab2c2}
-.timebox{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; min-width:140px}
-.timebox .sep::before{content:"/"; opacity:.6}
-
-/* 封面样式 */
-.cover-wrapper{
-  display:flex; justify-content:center; align-items:center;
-  margin-bottom:12px; min-height:60px;
-}
-.cover-img{
-  max-width:150px; max-height:150px; border-radius:8px;
-  box-shadow:0 4px 12px rgba(0,0,0,.3); display:none;
-}
-.cover-img.show{display:block}
-
-/* 字幕行样式 */
-.line {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 12px;
-  margin:2px 0;
-  border-radius:12px;
-  cursor:pointer;
-  transition:.12s;
-  opacity:.9;
-}
-.line:hover{background:#1f2432}
-.line.future{color:#8e97a8; opacity:.7}
-.line.past{color:#c2c8d8}
-.line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
-
-.line .time {
-  min-width:60px;
-  text-align:right;
-  flex-shrink:0;
-}
-.line .subtitle {
-  flex:1;
-  color:var(--text);
-}
-
-main{
-  display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0;
-}
-@media (max-width:900px){
-  main{
-    grid-template-columns:1fr;
-    grid-template-rows:auto 1fr;
+  :root{
+    --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
   }
-}
-.left{border-right:1px solid #222734; padding:12px 16px 8px; display:grid; gap:10px; align-content:start; min-width:0}
-.right{position:relative; overflow:hidden; min-width:0; min-height:0}
-.lyrics{
-  position:absolute; inset:0; overflow:auto; scroll-behavior:smooth;
-  padding:18px 14px calc(28px + env(safe-area-inset-bottom));
-}
-.progress{width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden}
-.bar{height:100%; width:0; background:#5c7cfa; transition:width .2s linear}
-
-@media (max-width:600px){
-  header{grid-template-columns:1fr}
-  .controls{gap:8px}
-  .btn{padding:9px 12px}
-  .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
-  .cover-img{max-width:120px; max-height:120px}
-}
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--text); background:#0f1115;
+    font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans CJK SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    display:grid; grid-template-rows:auto 1fr; height:100dvh; padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{
+    position:sticky; top:0; z-index:2;
+    padding:12px 16px; display:grid; gap:8px; grid-template-columns:1fr auto;
+    align-items:center; background:var(--panel); border-bottom:1px solid #222734;
+  }
+  .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .btn{appearance:none; border:0; border-radius:10px; background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .select{background:#2a3040; color:#dfe7ff; border:0; border-radius:10px; padding:10px 12px}
+  .hint{color:var(--muted); font-size:12px; margin:0}
+  .time{font-variant-numeric:tabular-nums; color:#aab2c2}
+  .timebox{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; min-width:140px}
+  .timebox .sep::before{content:"/"; opacity:.6}
+  
+  /* 封面样式 */
+  .cover-wrapper{
+    display:flex; justify-content:center; align-items:center;
+    margin-bottom:12px; min-height:60px;
+  }
+  .cover-img{
+    max-width:150px; max-height:150px; border-radius:8px;
+    box-shadow:0 4px 12px rgba(0,0,0,.3); display:none;
+  }
+  .cover-img.show{display:block}
+  
+  main{
+    display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0;
+  }
+  @media (max-width:900px){
+    main{
+      grid-template-columns:1fr;
+      grid-template-rows:auto 1fr;
+    }
+  }
+  .left{border-right:1px solid #222734; padding:12px 16px 8px; display:grid; gap:10px; align-content:start; min-width:0}
+  .right{position:relative; overflow:hidden; min-width:0; min-height:0}
+  .lyrics{
+    position:absolute; inset:0; overflow:auto; scroll-behavior:smooth;
+    padding:18px 14px calc(28px + env(safe-area-inset-bottom));
+  }
+  .progress{width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden}
+  .bar{height:100%; width:0; background:#5c7cfa; transition:width .2s linear}
+  .line{padding:10px 12px; margin:2px 0; border-radius:12px; cursor:pointer; transition:.12s; opacity:.9; display:flex; align-items:baseline; gap:12px}
+  .line:hover{background:#1f2432}
+  .line.future{color:#8e97a8; opacity:.7}
+  .line.past{color:#c2c8d8}
+  .line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
+  .line .time{flex-shrink:0}
+  .line .text{flex:1}
+  
+  @media (max-width:600px){
+    header{grid-template-columns:1fr}
+    .controls{gap:8px}
+    .btn{padding:9px 12px}
+    .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
+    .cover-img{max-width:120px; max-height:120px}
+  }
 </style>
 </head>
-
 <body>
 <header>
   <div class="controls">
@@ -111,18 +90,24 @@ main{
     </span>
     <div style="flex:1"></div>
     <label class="btn" id="pickFolderBtn" for="pickerFolder" style="display:none">选择文件夹</label>
-    <input id="pickerFolder" type="file" webkitdirectory directory multiple accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
+    <input id="pickerFolder" type="file" webkitdirectory directory multiple
+           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
     <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
-    <input id="pickerFiles" type="file" multiple accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
+    <input id="pickerFiles" type="file" multiple
+           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
     <select id="pairSelect" class="select" style="display:none"></select>
     <button class="btn" id="timerBtn">定时暂停 10 分钟</button>
   </div>
-  <p class="hint" id="hintText">电脑端可"选择文件夹"或多选文件；iOS 需从"文件"App 选择（Apple Music 库不支持）。</p>
+  <p class="hint" id="hintText">
+    电脑端可"选择文件夹"或多选文件；iOS 需从"文件"App 选择（Apple Music 库不支持）。
+  </p>
 </header>
-
 <main>
   <section class="left">
-    <div class="cover-wrapper"><img id="coverImg" class="cover-img" alt="专辑封面" /></div>
+    <!-- 封面显示区域 -->
+    <div class="cover-wrapper">
+      <img id="coverImg" class="cover-img" alt="专辑封面" />
+    </div>
     <audio id="player" preload="metadata" controls style="width:100%"></audio>
     <div class="progress"><div class="bar" id="bar"></div></div>
     <p class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</p>
@@ -133,6 +118,10 @@ main{
 </main>
 
 <script>
+const ua = navigator.userAgent || "";
+const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const canPickDir = "webkitdirectory" in document.createElement("input") && !isIOS;
+
 const $ = s => document.querySelector(s);
 const player = $('#player'), bar = $('#bar');
 const playBtn = $('#playPause'), curEl = $('#cur'), durEl = $('#dur');
@@ -141,9 +130,6 @@ const pickFolderBtn = $('#pickFolderBtn'), pickerFolder = $('#pickerFolder');
 const pickFilesBtn = $('#pickFilesBtn'), pickerFiles = $('#pickerFiles');
 const coverImg = $('#coverImg');
 
-const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
-const escapeHtml = s => s.replace(/[&<>\"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  
 if (canPickDir) pickFolderBtn.style.display = 'inline-block';
 if (isIOS) {
   pickerFiles.removeAttribute('accept');
@@ -338,43 +324,14 @@ function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2
 function render(cuesList){
   lyricsWrap.innerHTML='';
   cuesList.forEach((c,i)=>{
-    // 创建容器行
-    const line = document.createElement('div');
-    line.className = 'line future';
-    line.dataset.idx = i;
-    line.dataset.start = c.start;
-
-    // 创建时间容器
-    const timeEl = document.createElement('span');
-    timeEl.className = 'time';
-    timeEl.textContent = fmt(c.start);
-
-    // 创建字幕文本容器
-    const textEl = document.createElement('span');
-    textEl.className = 'subtitle';
-    textEl.textContent = c.text;
-
-    // 让时间与字幕同行显示
-    line.style.display = 'flex';
-    line.style.alignItems = 'center';
-    line.style.gap = '8px';
-
-    // 点击行跳转
-    line.onclick = () => {
-      player.currentTime = c.start + 0.02;
-      player.play();
-      setActive(i, true);
-    };
-
-    // 组合结构
-    line.appendChild(timeEl);
-    line.appendChild(textEl);
-    lyricsWrap.appendChild(line);
+    const div=document.createElement('div');
+    div.className='line future'; div.dataset.idx=i; div.dataset.start=c.start;
+    div.innerHTML=`<span class="time">${fmt(c.start)}</span><span class="text">${escapeHtml(c.text)}</span>`;
+    div.onclick=()=>{ player.currentTime=c.start+0.02; player.play(); setActive(i,true); };
+    lyricsWrap.appendChild(div);
   });
-  activeIdx = -1;
-  setActiveByTime(0, true);
+  activeIdx=-1; setActiveByTime(0,true);
 }
-
 
 function setActive(i,center=false){
   if(i===activeIdx) return; activeIdx=i;
