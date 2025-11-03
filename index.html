@@ -538,6 +538,30 @@ async function loadPair(group, opts={}){
     }
   });
 })();
+
+// ✅ 拖入文件支持
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      document.body.style.background = '#1a1d24';
+    });
+
+    document.addEventListener('dragleave', () => {
+      document.body.style.background = '';
+    });
+
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.body.style.background = '';
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length) {
+        handleFiles(dt.files); // 复用已有逻辑
+      }
+    });
+
+    // ✅ 启动逻辑（保留原来的 async () => {...}）
+    (async () => {
+      // 原始启动逻辑保留
+    })();
 </script>
 </body>
 </html>
