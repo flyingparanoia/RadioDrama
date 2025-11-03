@@ -562,6 +562,23 @@ async function loadPair(group, opts={}){
     (async () => {
       // 原始启动逻辑保留
     })();
-</script>
+
+  // 监听空格键控制播放/暂停
+    document.addEventListener('keydown', function(event) {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        const playerEl = document.getElementById('player');
+        if (playerEl) {
+          if (playerEl.paused) {
+            playerEl.play();
+          } else {
+            playerEl.pause();
+          }
+        }
+      }
+    });
+</script> 
 </body>
 </html>
