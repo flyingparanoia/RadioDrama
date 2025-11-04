@@ -77,6 +77,29 @@
     .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
     .cover-img{max-width:120px; max-height:120px}
   }
+  
+  .copy-word {
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: 0 2px;
+    border-radius: 4px;
+    background: #2a3040;
+    color: #fff;
+    transition: background 0.2s;
+  }
+ .copy-word:hover {
+   background: #5c7cfa;
+  }
+  .copy-toggle {
+    margin-left: 8px;
+    background: #444;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+  }
+
 </style>
 </head>
 <body>
@@ -321,17 +344,41 @@ function parseSRT(text){
 function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2}:\d{2}/.test(text) ? parseSRT(text) : parseLRC(text); }
 
 /* ===== 渲染与高亮 ===== */
-function render(cuesList){
-  lyricsWrap.innerHTML='';
-  cuesList.forEach((c,i)=>{
-    const div=document.createElement('div');
-    div.className='line future'; div.dataset.idx=i; div.dataset.start=c.start;
-    div.innerHTML=`<span class="time">${fmt(c.start)}</span><span class="text">${escapeHtml(c.text)}</span>`;
-    div.onclick=()=>{ player.currentTime=c.start+0.02; player.play(); setActive(i,true); };
+function render(cuesList) {
+  lyricsWrap.innerHTML = '';
+  cuesList.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'line future';
+    div.dataset.idx = i;
+    div.dataset.start = c.start;
+
+    div.innerHTML = `
+      <span class="time">${fmt(c.start)}</span>
+      <span class="text">${escapeHtml(c.text)}</span>
+      <button class="copy-toggle">✂️</button>
+    `;
+
+    div.onclick = () => {
+      player.currentTime = c.start + 0.02;
+      player.play();
+      setActive(i, true);
+    };
+    
+    div.querySelector('.copy-toggle').onclick = (e) => {
+      e.stopPropagation(); // 防止触发跳转播放
+      const textSpan = div.querySelector('.text');
+      const words = textSpan.textContent.trim().split(/\s+/);
+      textSpan.innerHTML = words.map(word => 
+        `<span class="copy-word" onclick="copyWord(event)">${escapeHtml(word)}</span>`
+      ).join(' ');
+    };
+    
     lyricsWrap.appendChild(div);
   });
-  activeIdx=-1; setActiveByTime(0,true);
+  activeIdx = -1;
+  setActiveByTime(0, true);
 }
+
 
 function setActive(i,center=false){
   if(i===activeIdx) return; activeIdx=i;
@@ -579,6 +626,19 @@ async function loadPair(group, opts={}){
         }
       }
     });
+    
+    // 全局复制函数
+    function copyWord(event) {
+      event.stopPropagation();
+      const word = event.target.textContent;
+      navigator.clipboard.writeText(word).then(() => {
+        event.target.style.background = '#5c7cfa';
+        setTimeout(() => {
+          event.target.style.background = '';
+        }, 500);
+      });
+    }
+
 </script> 
 </body>
 </html>
