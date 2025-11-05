@@ -639,6 +639,24 @@ async function loadPair(group, opts={}){
       });
     }
 
+
+    // 封面控制播放
+  document.addEventListener('DOMContentLoaded', () => {
+  const audio = document.getElementById('player');
+  const cover = document.getElementById('coverImg');
+
+  if (cover && audio) {
+    cover.style.cursor = 'pointer'; // 鼠标悬停时显示手型
+    cover.addEventListener('click', () => {
+      if (audio.paused) {
+        audio.play();
+      } else {
+        audio.pause();
+      }
+    });
+  }
+});
+
 </script> 
 </body>
 </html>
