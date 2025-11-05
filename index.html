@@ -38,6 +38,7 @@
   .cover-wrapper{
     display:flex; justify-content:center; align-items:center;
     margin-bottom:12px; min-height:60px;
+    cursor:pointer;
   }
   .cover-img{
     max-width:150px; max-height:150px; border-radius:8px;
@@ -128,7 +129,7 @@
 <main>
   <section class="left">
     <!-- 封面显示区域 -->
-    <div class="cover-wrapper">
+    <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
       <img id="coverImg" class="cover-img" alt="专辑封面" />
     </div>
     <audio id="player" preload="metadata" controls style="width:100%"></audio>
@@ -152,6 +153,7 @@ const pairSelect = $('#pairSelect'), lyricsWrap = $('#lyrics');
 const pickFolderBtn = $('#pickFolderBtn'), pickerFolder = $('#pickerFolder');
 const pickFilesBtn = $('#pickFilesBtn'), pickerFiles = $('#pickerFiles');
 const coverImg = $('#coverImg');
+const coverWrap = $('#coverWrap');
 
 if (canPickDir) pickFolderBtn.style.display = 'inline-block';
 if (isIOS) {
@@ -639,24 +641,25 @@ async function loadPair(group, opts={}){
       });
     }
 
+// 封面区域控制播放
+function togglePlay(){
+  // 没有音频就不触发
+  if (!player.src) return;
+  if (player.paused) player.play(); else player.pause();
+}
 
-    // 封面控制播放
-  document.addEventListener('DOMContentLoaded', () => {
-  const audio = document.getElementById('player');
-  const cover = document.getElementById('coverImg');
+// 封面区域点击/键盘控制播放
+if (coverWrap) {
+  coverWrap.addEventListener('click', togglePlay);
+  coverWrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      togglePlay();
+    }
+  });
+}
 
-  if (cover && audio) {
-    cover.style.cursor = 'pointer'; // 鼠标悬停时显示手型
-    cover.addEventListener('click', () => {
-      if (audio.paused) {
-        audio.play();
-      } else {
-        audio.pause();
-      }
-    });
-  }
-});
-
+  
 </script> 
 </body>
 </html>
