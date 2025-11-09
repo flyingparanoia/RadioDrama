@@ -19,12 +19,18 @@
   }
   header{
     position:sticky; top:0; z-index:2;
-    padding:12px 16px; display:flex; align-items:center; justify-content:center;
-    background:var(--panel); border-bottom:1px solid #222734;
+    padding:12px 16px; display:grid; grid-template-columns:auto 1fr auto;
+    align-items:center; background:var(--panel); border-bottom:1px solid #222734;
   }
+  .btn{
+    appearance:none; border:0; border-radius:10px;
+    background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer;
+  }
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
   .title{
     font-size:16px; font-weight:600; color:var(--text);
-    text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:90vw;
+    text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70vw;
   }
   .cover-wrapper{
     display:flex; justify-content:center; align-items:center;
@@ -48,7 +54,6 @@
   .line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
   .line .time{flex-shrink:0}
   .line .text{flex:1}
-  @media (max-width:600px){.cover-img{max-width:120px; max-height:120px}.cover-ph{width:120px; height:120px}}
   .copy-word{cursor:pointer; padding:2px 4px; margin:0 2px; border-radius:4px; background:#2a3040; color:#fff; transition:background 0.2s;}
   .copy-word:hover{background:#5c7cfa;}
   .copy-toggle{margin-left:8px; background:#444; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;}
@@ -56,8 +61,15 @@
 </head>
 <body>
 <header>
+  <div class="header-left">
+    <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
+    <input id="pickerFiles" type="file" multiple
+      accept="audio/*,video/*,.mp4,.m4v,.mov,.webm,.srt,.lrc,.txt,text/plain" style="display:none" />
+  </div>
   <h1 id="title" class="title">未选择文件</h1>
+  <div class="header-right"></div>
 </header>
+
 <main>
   <section class="left">
     <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
@@ -101,14 +113,19 @@ const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
 const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test(f.name);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
 
-/* ===== 标题：展示文件名（加图标，去扩展名） ===== */
+// 保留原脚本逻辑，这里只需要在 handleFiles 中添加：更新标题
 function setTitleByFile(file){
-  if (!file) { titleEl.textContent = ''; titleEl.title=''; return; }
-  const icon = isVideoFile(file) ? "🎬 " : "🎵 ";
-  const base = file.name.replace(/\.[^.]+$/,'');
-  titleEl.textContent = icon + base;
-  titleEl.title = file.name; // hover 展示完整文件名
+  const icon = /\.(mp4|m4v|mov|webm)$/i.test(file.name) ? '🎬 ' : '🎵 ';
+  document.getElementById('title').textContent = icon + file.name.replace(/\\.[^.]+$/, '');
 }
+document.getElementById('pickerFiles').addEventListener('change', (e)=>{
+  const files = e.target.files;
+  if(files.length){
+    setTitleByFile(files[0]);
+    // 原 handleFiles(files) 调用逻辑
+    handleFiles(files);
+  }
+});
 
 /* ===== 封面提取（仅音频） ===== */
 function extractCover(file){
