@@ -19,6 +19,7 @@
     position:sticky; top:0; z-index:2;
     padding:12px 16px; display:grid; grid-template-columns:auto 1fr auto;
     align-items:center; background:var(--panel); border-bottom:1px solid #222734;
+    gap:12px;
   }
   .btn{
     appearance:none; border:0; border-radius:10px; background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer;
@@ -35,6 +36,8 @@
   }
   .timebox .sep::before{ content:"/"; opacity:.6 }
   .time{ color:#aab2c2 }
+
+  .right-tools{ display:flex; align-items:center; gap:10px; }
 
   main{ display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0; }
   @media (max-width:900px){ main{ grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
@@ -85,13 +88,14 @@
   <!-- 中：标题（文件名） -->
   <h1 id="title" class="title">未选择文件</h1>
 
-  <!-- 右：播放时间 -->
-  <div>
+  <!-- 右：时间 + 定时暂停 -->
+  <div class="right-tools">
     <span class="timebox">
       <span class="time" id="cur">00:00</span>
       <span class="sep"></span>
       <span class="time" id="dur">00:00</span>
     </span>
+    <button class="btn" id="timerBtn" title="10分钟后自动暂停">定时暂停 10 分钟</button>
   </div>
 </header>
 
@@ -124,6 +128,7 @@ const coverImg = $('#coverImg'), coverPh = $('#coverPh');
 const coverWrap = $('#coverWrap');
 const titleEl = $('#title');
 const curEl = $('#cur'), durEl = $('#dur');
+const timerBtn = $('#timerBtn');
 
 if (isIOS) { pickerFiles.removeAttribute('accept'); }
 
@@ -136,7 +141,7 @@ const ext = f => f.name.split('.').pop().toLowerCase();
 const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
 const isMedia = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus|mp4|m4v|mov|webm)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
-const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test(f.name || f);
+const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test((f && f.name) || f);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
 function setTitleByFile(file){
   if (!file){ titleEl.textContent='未选择文件'; titleEl.title=''; return; }
@@ -445,6 +450,36 @@ if (coverWrap) {
 }
 /* 点击视频区域也可切换播放（不影响原生控件） */
 player.addEventListener('click', (e)=> { if (e.target === player) togglePlay(); });
+
+/* ---- 定时暂停（10分钟） ---- */
+let stopTimer = null;
+function clearStopTimer(silent = true){
+  if (stopTimer) {
+    clearTimeout(stopTimer);
+    stopTimer = null;
+    if (!silent) alert('已取消定时暂停。');
+    timerBtn.textContent = '定时暂停 10 分钟';
+    timerBtn.title = '10分钟后自动暂停';
+  }
+}
+function startStopTimer(minutes){
+  clearStopTimer(true);
+  stopTimer = setTimeout(()=>{
+    if (!player.paused) player.pause();
+    alert(`已到 ${minutes} 分钟，播放已暂停。`);
+    stopTimer = null;
+    timerBtn.textContent = '定时暂停 10 分钟';
+    timerBtn.title = '10分钟后自动暂停';
+  }, minutes * 60 * 1000);
+  timerBtn.textContent = `已设定：${minutes} 分钟`;
+  timerBtn.title = `将在 ${minutes} 分钟后暂停播放；再次点击取消`;
+}
+timerBtn.addEventListener('click', ()=>{
+  if (stopTimer) clearStopTimer(false);
+  else startStopTimer(10);
+});
+// 当视频/音频被手动暂停时，不强制清除定时（保留策略）；若需要可取消注释下一行：
+// player.addEventListener('pause', () => { clearStopTimer(true); });
 </script>
 </body>
 </html>
