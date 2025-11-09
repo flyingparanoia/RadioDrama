@@ -45,6 +45,13 @@
     box-shadow:0 4px 12px rgba(0,0,0,.3); display:none;
   }
   .cover-img.show{display:block}
+
+  /* 无封面时的黑底占位 */
+  .cover-ph{ 
+    width:150px; height:150px; border-radius:8px; 
+    background:#000; display:none; box-shadow:0 4px 12px rgba(0,0,0,.3);
+  }
+  .cover-ph.show{display:block}
   
   main{
     display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0;
@@ -77,6 +84,7 @@
     .btn{padding:9px 12px}
     .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
     .cover-img{max-width:120px; max-height:120px}
+    .cover-ph{width:120px; height:120px}
   }
   
   .copy-word {
@@ -100,7 +108,6 @@
     padding: 2px 6px;
     cursor: pointer;
   }
-
 </style>
 </head>
 <body>
@@ -128,10 +135,12 @@
 </header>
 <main>
   <section class="left">
-    <!-- 封面显示区域 -->
+    <!-- 封面显示区域（点击可播放/暂停） -->
     <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
       <img id="coverImg" class="cover-img" alt="专辑封面" />
+      <div id="coverPh" class="cover-ph"></div>
     </div>
+    <!-- 视频仅在播放视频文件时显示 -->
     <video id="player" preload="metadata" controls playsinline style="width:100%; max-height:48vh; border-radius:10px; background:#000"></video>
     <div class="progress"><div class="bar" id="bar"></div></div>
     <p class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</p>
@@ -154,6 +163,7 @@ const pickFolderBtn = $('#pickFolderBtn'), pickerFolder = $('#pickerFolder');
 const pickFilesBtn = $('#pickFilesBtn'), pickerFiles = $('#pickerFiles');
 const coverImg = $('#coverImg');
 const coverWrap = $('#coverWrap');
+const coverPh = $('#coverPh');
 
 if (canPickDir) pickFolderBtn.style.display = 'inline-block';
 if (isIOS) {
@@ -167,17 +177,17 @@ const ext = f => f.name.split('.').pop().toLowerCase();
 const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
 const isMedia = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus|mp4|m4v|mov|webm)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
-const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test(f.name);
+const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
 
 /* ===== 提取封面 ===== */
 function extractCover(file){
+  // 初始：隐藏封面图，显示黑底占位
   coverImg.classList.remove('show');
+  coverPh.classList.add('show');
   
-    // 🔽 新增：如果是视频，直接跳过封面提取（交给 <video> 自己显示画面）
-  if (file && /\.(mp4|m4v|mov|webm)$/i.test(file.name)) {
-    return;
-  }
-  
+  // 如果是视频，跳过封面提取（仅显示视频画面）
+  if (file && isVideoFile(file)) return;
   if (!file || !window.jsmediatags) return;
   
   window.jsmediatags.read(file, {
@@ -186,16 +196,18 @@ function extractCover(file){
       if (tags.picture) {
         const { data, format } = tags.picture;
         let base64String = "";
-        for (let i = 0; i < data.length; i++) {
-          base64String += String.fromCharCode(data[i]);
-        }
+        for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
         const dataUrl = `data:${format};base64,${window.btoa(base64String)}`;
         coverImg.src = dataUrl;
+        coverPh.classList.remove('show');
         coverImg.classList.add('show');
       }
     },
     onError: (error) => {
       console.log('封面提取失败:', error);
+      // 失败则维持黑底占位
+      coverImg.classList.remove('show');
+      coverPh.classList.add('show');
     }
   });
 }
@@ -330,7 +342,7 @@ async function tryRestoreFromCache(){
 function parseLRC(text){
   const lines = text.replace(/\r/g,'').split('\n'); const list=[];
   for(const raw of lines){
-    const ts=[...raw.matchAll(/\[(\d{1,2}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)];
+    const ts=[...raw.matchAll(/\[(\d{1,2}):(\d{1,2})(?:[.:-](\d{1,3}))?\]/g)];
     if(!ts.length) continue;
     const lyric = raw.replace(/\[[^\]]+\]/g,'').trim(); if(!lyric) continue;
     for(const m of ts){ const mm=+m[1], ss=+m[2], ms=m[3]? +m[3].padEnd(3,'0'):0; list.push({start:mm*60+ss+ms/1000, text:lyric});}
@@ -417,6 +429,7 @@ player.ontimeupdate=()=>{
   setActiveByTime(player.currentTime);
 };
 player.onloadedmetadata=()=> durEl.textContent=fmt(player.duration);
+
 document.addEventListener('keydown',e=>{
   if(!cues.length) return;
   if(e.key==='ArrowDown'){ setActive(Math.min(activeIdx+1,cues.length-1),true); e.preventDefault(); }
@@ -463,6 +476,7 @@ function throttle(fn, wait=3000){
 }
 
 const savePlayPosThrottled = throttle(savePlayPos, 3000);
+
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') savePlayPos(); });
 window.addEventListener('pagehide', savePlayPos);
 
@@ -497,12 +511,28 @@ pickerFiles.onchange = (e)=> handleFiles(e.target.files);
 pickerFolder.onchange = (e)=> handleFiles(e.target.files);
 
 async function loadPair(group, opts={}){
+  // 控制显示：MP3 -> 只显示封面/黑底；MP4 -> 只显示视频画面
   if(group.audio){
+    const isVideo = isVideoFile(group.audio);
     player.src = URL.createObjectURL(group.audio);
-    extractCover(group.audio); // 提取封面
+
+    if (isVideo) {
+      // 显示视频画面，隐藏封面区域
+      player.style.display = 'block';
+      coverWrap.style.display = 'none';
+      coverImg.classList.remove('show');
+      coverPh.classList.remove('show');
+    } else {
+      // 音频：隐藏 video（避免黑屏占位），仅显示封面或黑底
+      player.style.display = 'none';
+      coverWrap.style.display = 'flex';
+      extractCover(group.audio);
+    }
   } else {
+    // 没有媒体：全部隐藏
     player.removeAttribute('src');
-    coverImg.classList.remove('show');
+    player.style.display = 'none';
+    coverWrap.style.display = 'none';
   }
 
   if(group.lyric){
@@ -664,8 +694,6 @@ if (coverWrap) {
     }
   });
 }
-
-  
 </script> 
 </body>
 </html>
