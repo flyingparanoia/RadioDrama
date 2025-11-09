@@ -29,20 +29,37 @@
     font-size:16px; font-weight:600; color:var(--text);
     text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70vw;
   }
-  .cover-wrapper{
-    display:flex; justify-content:center; align-items:center; margin-bottom:12px; min-height:60px; cursor:pointer;
+  .timebox{
+    display:inline-flex; align-items:center; gap:6px;
+    white-space:nowrap; font-variant-numeric:tabular-nums; color:#aab2c2;
   }
-  .cover-img{ max-width:150px; max-height:150px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.3); display:none; }
-  .cover-img.show{ display:block }
-  .cover-ph{ width:150px; height:150px; border-radius:8px; background:#000; display:none; box-shadow:0 4px 12px rgba(0,0,0,.3); }
-  .cover-ph.show{ display:block }
+  .timebox .sep::before{ content:"/"; opacity:.6 }
+  .time{ color:#aab2c2 }
+
   main{ display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0; }
   @media (max-width:900px){ main{ grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
   .left{ border-right:1px solid #222734; padding:12px 16px 8px; display:grid; gap:10px; align-content:start; min-width:0 }
   .right{ position:relative; overflow:hidden; min-width:0; min-height:0 }
-  .lyrics{ position:absolute; inset:0; overflow:auto; scroll-behavior:smooth; padding:18px 14px calc(28px + env(safe-area-inset-bottom)); }
-  .progress{ width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden }
+
+  /* 媒体 */
+  .cover-wrapper{ display:flex; justify-content:center; align-items:center; margin-bottom:12px; min-height:60px; cursor:pointer; }
+  .cover-img{ max-width:150px; max-height:150px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.3); display:none; }
+  .cover-img.show{ display:block }
+  .cover-ph{ width:150px; height:150px; border-radius:8px; background:#000; display:none; box-shadow:0 4px 12px rgba(0,0,0,.3); }
+  .cover-ph.show{ display:block }
+  video#player{ width:100%; max-height:48vh; border-radius:10px; background:#000; }
+
+  /* 进度条 */
+  .progress{ width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden; cursor:pointer; }
   .bar{ height:100%; width:0; background:#5c7cfa; transition:width .2s linear }
+
+  /* 歌词 */
+  .lyrics{
+    position:absolute; inset:0; overflow:auto; scroll-behavior:smooth;
+    padding:18px 14px calc(28px + env(safe-area-inset-bottom));
+    height:100%;
+    -webkit-overflow-scrolling:touch;
+  }
   .line{ padding:10px 12px; margin:2px 0; border-radius:12px; cursor:pointer; transition:.12s; opacity:.9; display:flex; align-items:baseline; gap:12px }
   .line:hover{ background:#1f2432 }
   .line.future{ color:#8e97a8; opacity:.7 }
@@ -50,6 +67,7 @@
   .line.active{ background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04) }
   .line .time{ flex-shrink:0 }
   .line .text{ flex:1 }
+
   .copy-word{ cursor:pointer; padding:2px 4px; margin:0 2px; border-radius:4px; background:#2a3040; color:#fff; transition:background .2s; }
   .copy-word:hover{ background:#5c7cfa; }
   .copy-toggle{ margin-left:8px; background:#444; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; }
@@ -57,24 +75,38 @@
 </head>
 <body>
 <header>
+  <!-- 左：选择文件 -->
   <div>
     <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
     <input id="pickerFiles" type="file" multiple
       accept="audio/*,video/*,.mp4,.m4v,.mov,.webm,.srt,.lrc,.txt,text/plain" style="display:none" />
   </div>
+
+  <!-- 中：标题（文件名） -->
   <h1 id="title" class="title">未选择文件</h1>
-  <div></div>
+
+  <!-- 右：播放时间 -->
+  <div>
+    <span class="timebox">
+      <span class="time" id="cur">00:00</span>
+      <span class="sep"></span>
+      <span class="time" id="dur">00:00</span>
+    </span>
+  </div>
 </header>
 
 <main>
   <section class="left">
+    <!-- 音频仅显示封面（或黑底），视频仅显示画面 -->
     <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
       <img id="coverImg" class="cover-img" alt="专辑封面" />
       <div id="coverPh" class="cover-ph"></div>
     </div>
-    <video id="player" preload="metadata" controls playsinline style="width:100%; max-height:48vh; border-radius:10px; background:#000"></video>
+    <video id="player" preload="metadata" controls playsinline></video>
+
     <div class="progress"><div class="bar" id="bar"></div></div>
   </section>
+
   <section class="right">
     <div id="lyrics" class="lyrics" aria-label="lyrics list"></div>
   </section>
@@ -91,21 +123,21 @@ const pickerFiles = $('#pickerFiles');
 const coverImg = $('#coverImg'), coverPh = $('#coverPh');
 const coverWrap = $('#coverWrap');
 const titleEl = $('#title');
+const curEl = $('#cur'), durEl = $('#dur');
 
-if (isIOS) {
-  // iOS 无法同时选多类型，放宽 accept
-  pickerFiles.removeAttribute('accept');
-}
+if (isIOS) { pickerFiles.removeAttribute('accept'); }
 
 let cues = [], activeIdx = -1;
+const POS_KEY = 'mp3srt:lastPosV1';
+const DB_NAME = 'mp3srt-cache', STORE = 'files', META_KEY = 'mp3srt:lastMeta', MAX_AUDIO_MB = 120;
+
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
 const ext = f => f.name.split('.').pop().toLowerCase();
 const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
 const isMedia = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus|mp4|m4v|mov|webm)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
-const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test(f.name);
+const isVideoFile = f => /\.(mp4|m4v|mov|webm)$/i.test(f.name || f);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m]));
-
 function setTitleByFile(file){
   if (!file){ titleEl.textContent='未选择文件'; titleEl.title=''; return; }
   const icon = isVideoFile(file) ? '🎬 ' : '🎵 ';
@@ -113,82 +145,35 @@ function setTitleByFile(file){
   titleEl.title = file.name;
 }
 
-/* ===== 封面提取（仅音频） ===== */
+/* ---- 封面（音频） ---- */
 function extractCover(file){
   coverImg.classList.remove('show');
-  coverPh.classList.add('show'); // 默认黑底
-  if (file && isVideoFile(file)) return; // 视频不提取封面
+  coverPh.classList.add('show');
+  if (file && isVideoFile(file)) return;
   if (!file || !window.jsmediatags) return;
   window.jsmediatags.read(file, {
-    onSuccess: (tag) => {
-      const { tags } = tag;
+    onSuccess: ({ tags }) => {
       if (tags.picture) {
         const { data, format } = tags.picture;
-        let base64String = "";
-        for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
-        const dataUrl = `data:${format};base64,${window.btoa(base64String)}`;
+        let base64String = ""; for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
+        const dataUrl = `data:${format};base64,${btoa(base64String)}`;
         coverImg.src = dataUrl;
-        coverPh.classList.remove('show');
-        coverImg.classList.add('show');
+        coverPh.classList.remove('show'); coverImg.classList.add('show');
       }
     },
     onError: () => { coverImg.classList.remove('show'); coverPh.classList.add('show'); }
   });
 }
 
-/* ===== 本地缓存 ===== */
-const DB_NAME = 'mp3srt-cache';
-const STORE = 'files';
-const META_KEY = 'mp3srt:lastMeta';
-const MAX_AUDIO_MB = 120;
-const POS_KEY = 'mp3srt:lastPosV1';
-let currentAudioId = null;
-
-function idbOpen(){
-  return new Promise((resolve, reject)=>{
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbPut(key, blob){
-  const db = await idbOpen();
-  return new Promise((resolve, reject)=>{
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(blob, key);
-    tx.oncomplete = ()=>resolve();
-    tx.onerror = ()=>reject(tx.error);
-  });
-}
-async function idbGet(key){
-  const db = await idbOpen();
-  return new Promise((resolve, reject)=>{
-    const tx = db.transaction(STORE, 'readonly');
-    const r = tx.objectStore(STORE).get(key);
-    r.onsuccess = ()=>resolve(r.result || null);
-    r.onerror = ()=>reject(r.error);
-  });
-}
-async function idbDel(key){
-  const db = await idbOpen();
-  return new Promise((resolve, reject)=>{
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(key);
-    tx.oncomplete = ()=>resolve();
-    tx.onerror = ()=>reject(tx.error);
-  });
-}
+/* ---- 缓存 ---- */
+function idbOpen(){ return new Promise((resolve, reject)=>{ const req = indexedDB.open(DB_NAME, 1); req.onupgradeneeded = () => req.result.createObjectStore(STORE); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); }
+async function idbPut(key, blob){ const db = await idbOpen(); return new Promise((resolve, reject)=>{ const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).put(blob, key); tx.oncomplete = ()=>resolve(); tx.onerror = ()=>reject(tx.error); }); }
+async function idbGet(key){ const db = await idbOpen(); return new Promise((resolve, reject)=>{ const tx = db.transaction(STORE, 'readonly'); const r = tx.objectStore(STORE).get(key); r.onsuccess = ()=>resolve(r.result || null); r.onerror = ()=>reject(r.error); }); }
+async function idbDel(key){ const db = await idbOpen(); return new Promise((resolve, reject)=>{ const tx = db.transaction(STORE, 'readwrite'); tx.objectStore(STORE).delete(key); tx.oncomplete = ()=>resolve(); tx.onerror = ()=>reject(tx.error); }); }
 async function persistStorageIfPossible(){ if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch {} } }
-async function reportStorage(){
-  if (!navigator.storage || !navigator.storage.estimate) return;
-  try {
-    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
-    if (quota && usage / quota > 0.8) { await idbDel('audioBlob'); console.warn('接近存储上限，已自动清除音频副本，仅保留字幕缓存。'); }
-  } catch {}
-}
+async function reportStorage(){ if (!navigator.storage || !navigator.storage.estimate) return; try { const { usage = 0, quota = 0 } = await navigator.storage.estimate(); if (quota && usage / quota > 0.8) { await idbDel('audioBlob'); console.warn('接近存储上限，已自动清除音频副本，仅保留字幕缓存。'); } } catch {} }
 async function saveCacheFromGroup(group){
-  try {
+  try{
     await persistStorageIfPossible();
     const meta = { name: group.name };
     if (group.audio) {
@@ -199,9 +184,9 @@ async function saveCacheFromGroup(group){
     if (group.lyric) { await idbPut('lyricBlob', group.lyric); meta.lyricName = group.lyric.name; meta.lyricType = group.lyric.type || 'text/plain'; }
     else { await idbDel('lyricBlob'); }
     localStorage.setItem(META_KEY, JSON.stringify(meta));
-  } catch (e) { console.warn('保存缓存失败：', e); }
+  }catch(e){ console.warn('保存缓存失败：', e); }
 }
-async function clearCache(all=true){ try { await idbDel('audioBlob'); await idbDel('lyricBlob'); localStorage.removeItem(META_KEY); if (all) localStorage.removeItem(POS_KEY); } catch (e) { console.warn('清除缓存失败：', e); } }
+async function clearCache(all=true){ try { await idbDel('audioBlob'); await idbDel('lyricBlob'); localStorage.removeItem(META_KEY); if (all) localStorage.removeItem(POS_KEY); } catch(e){ console.warn('清除缓存失败：', e); } }
 async function tryRestoreFromCache(){
   const metaRaw = localStorage.getItem(META_KEY);
   if (!metaRaw) return false;
@@ -215,10 +200,11 @@ async function tryRestoreFromCache(){
     lyric: lyricBlob ? new File([lyricBlob], meta.lyricName || 'subtitle.srt', { type: meta.lyricType || 'text/plain' }) : null,
   };
   await loadPair(group, {fromCache:true});
+  setTitleByFile(group.audio || null);
   return true;
 }
 
-/* ===== 字幕解析 ===== */
+/* ---- 字幕解析 ---- */
 function parseLRC(text){
   const lines = text.replace(/\r/g,'').split('\n'); const list=[];
   for(const raw of lines){
@@ -241,7 +227,7 @@ function parseSRT(text){
 }
 function pickParser(name,text){ return /\.srt$/i.test(name)||/-->\s*\d{1,2}:\d{2}:\d{2}/.test(text) ? parseSRT(text) : parseLRC(text); }
 
-/* ===== 渲染与高亮 ===== */
+/* ---- 渲染与高亮 ---- */
 function render(cuesList) {
   lyricsWrap.innerHTML = '';
   cuesList.forEach((c, i) => {
@@ -262,16 +248,34 @@ function render(cuesList) {
     };
     lyricsWrap.appendChild(div);
   });
-  activeIdx = -1; setActiveByTime(0, true);
+  activeIdx = -1;
+  requestAnimationFrame(() => setActiveByTime(0, true));
 }
-function setActive(i,center=false){
-  if(i===activeIdx) return; activeIdx=i;
-  const lines=[...lyricsWrap.querySelectorAll('.line')];
-  lines.forEach((el,k)=>{ el.classList.remove('past','future','active'); if(k<i) el.classList.add('past'); else if(k>i) el.classList.add('future'); });
-  const cur = lines[i]; if(cur){ cur.classList.add('active');
-    const margin=120, top=cur.offsetTop-lyricsWrap.clientHeight/2+cur.clientHeight/2;
-    const need = cur.offsetTop < lyricsWrap.scrollTop + margin || cur.offsetTop+cur.clientHeight > lyricsWrap.scrollTop+lyricsWrap.clientHeight - margin;
-    if(center || need) lyricsWrap.scrollTo({top,behavior:'smooth'});
+function setActive(i, center = false){
+  if (!cues.length) return;
+  if (i === activeIdx) return;
+  activeIdx = i;
+
+  const lines = [...lyricsWrap.querySelectorAll('.line')];
+  lines.forEach((el, k) => {
+    el.classList.remove('past','future','active');
+    if (k < i) el.classList.add('past');
+    else if (k > i) el.classList.add('future');
+  });
+
+  const cur = lines[i];
+  if (!cur) return;
+  cur.classList.add('active');
+
+  const margin = 120;
+  const top = cur.offsetTop;
+  const st = lyricsWrap.scrollTop;
+  const ch = lyricsWrap.clientHeight;
+
+  const need = center || top < st + margin || (top + cur.clientHeight) > (st + ch - margin);
+
+  if (need) {
+    cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 }
 function setActiveByTime(t,center=false){
@@ -281,7 +285,26 @@ function setActiveByTime(t,center=false){
   setActive(ans,center);
 }
 
-/* ===== 进度记忆 ===== */
+/* ---- 时间 / 进度 ---- */
+player.ontimeupdate = () => {
+  if (curEl) curEl.textContent = fmt(player.currentTime);
+  if (isFinite(player.duration)) {
+    bar.style.width = (player.currentTime / player.duration * 100).toFixed(2) + '%';
+  }
+  setActiveByTime(player.currentTime);
+};
+player.onloadedmetadata = () => {
+  if (durEl) durEl.textContent = fmt(player.duration);
+};
+document.querySelector('.progress').addEventListener('click', (e) => {
+  if (!isFinite(player.duration)) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+  player.currentTime = ratio * player.duration;
+});
+
+/* ---- 进度记忆 ---- */
+let currentAudioId = null;
 function getAudioId(file){ if (!file) return null; const size = typeof file.size === 'number' ? file.size : 0; return `${file.name}|${size}`; }
 function savePlayPos(){
   if (!currentAudioId || !isFinite(player.duration)) return;
@@ -304,23 +327,23 @@ const savePlayPosThrottled = throttle(savePlayPos, 3000);
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') savePlayPos(); });
 window.addEventListener('pagehide', savePlayPos);
 
-/* ===== 选择文件 / 自动配对 ===== */
+/* ---- 选择文件 / 自动配对 ---- */
 async function handleFiles(fileList){
   const files = Array.from(fileList||[]);
   if(!files.length) return;
+
   const groups = new Map();
   for(const f of files){
     const ex = ext(f), st = stem(f);
     if(!(isMedia(ex)||isLyric(ex))) continue;
     if(!groups.has(st)) groups.set(st,{audio:null, lyric:null, name:st});
     const g = groups.get(st);
-    if(isMedia(ex) && !g.audio) g.audio=f; 
+    if(isMedia(ex) && !g.audio) g.audio=f;
     if(isLyric(ex)) { if(!g.lyric || /\.srt$/i.test(f.name)) g.lyric=f; }
   }
   const pairs = [...groups.values()].filter(g=>g.audio||g.lyric);
   if(!pairs.length){ alert('未找到可用的 MP3/视频 或 字幕文件'); return; }
 
-  // 没有选择器了：默认加载第一组
   const chosen = pairs[0];
   await loadPair(chosen);
   setTitleByFile(chosen.audio || chosen.lyric || files[0]);
@@ -329,12 +352,10 @@ async function handleFiles(fileList){
     console.log(`发现 ${pairs.length} 组可配对文件，当前已加载第一组：`, pairs.map(p=>p.name));
   }
 }
-
 pickerFiles.addEventListener('change', (e)=> handleFiles(e.target.files));
 
-/* ===== 加载媒体/字幕，并根据类型切换呈现 ===== */
+/* ---- 加载媒体/字幕，并根据类型切换呈现 ---- */
 async function loadPair(group, opts={}){
-  // 仅视频显示 <video>，音频只显示封面/黑底
   if(group.audio){
     const isVideo = isVideoFile(group.audio);
     player.src = URL.createObjectURL(group.audio);
@@ -380,13 +401,13 @@ async function loadPair(group, opts={}){
   player.addEventListener('timeupdate', savePlayPosThrottled);
 }
 
-/* ===== 启动 ===== */
+/* ---- 启动 ---- */
 (async () => {
   await reportStorage();
   await tryRestoreFromCache();
 })();
 
-// 拖入文件
+/* ---- 拖入文件 ---- */
 document.addEventListener('dragover', (e) => { e.preventDefault(); document.body.style.background = '#1a1d24'; });
 document.addEventListener('dragleave', () => { document.body.style.background = ''; });
 document.addEventListener('drop', (e) => {
@@ -395,7 +416,7 @@ document.addEventListener('drop', (e) => {
   if (dt && dt.files && dt.files.length) handleFiles(dt.files);
 });
 
-// 空格键播放/暂停（输入框除外）
+/* ---- 空格键播放/暂停（输入框除外） ---- */
 document.addEventListener('keydown', (event) => {
   const active = document.activeElement;
   if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
@@ -406,7 +427,7 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-// 全局复制函数（歌词分词复制）
+/* ---- 复制单词（歌词） ---- */
 function copyWord(event) {
   event.stopPropagation();
   const word = event.target.textContent;
@@ -416,13 +437,13 @@ function copyWord(event) {
   });
 }
 
-// 封面区域控制播放
+/* ---- 封面区域控制播放 ---- */
 function togglePlay(){ if (!player.src) return; player.paused ? player.play() : player.pause(); }
 if (coverWrap) {
   coverWrap.addEventListener('click', togglePlay);
   coverWrap.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePlay(); } });
 }
-// 点击视频区域也可切换播放
+/* 点击视频区域也可切换播放（不影响原生控件） */
 player.addEventListener('click', (e)=> { if (e.target === player) togglePlay(); });
 </script>
 </body>
