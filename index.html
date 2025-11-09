@@ -6,11 +6,11 @@
 <title>字幕自动配对播放器（MP3 + SRT/LRC）</title>
 <link rel="icon" href="thumbnail.png" type="image/png" />
 <link rel="apple-touch-icon" href="thumbnail.png" />
-<!-- 引入 jsmediatags 库用于提取封面 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
-
 <style>
-  :root{ --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff; }
+  :root{
+    --bg:#0f1115; --panel:#1a1d24; --text:#d7dbe7; --muted:#8e97a8; --active:#fff;
+  }
   *{box-sizing:border-box}
   body{
     margin:0; color:var(--text); background:#0f1115;
@@ -19,50 +19,26 @@
   }
   header{
     position:sticky; top:0; z-index:2;
-    padding:12px 16px; display:grid; gap:8px; grid-template-columns:auto 1fr auto;
-    align-items:center; background:var(--panel); border-bottom:1px solid #222734;
+    padding:12px 16px; display:flex; align-items:center; justify-content:center;
+    background:var(--panel); border-bottom:1px solid #222734;
   }
-  .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-  .btn{appearance:none; border:0; border-radius:10px; background:#2a3040; color:#fff; padding:10px 14px; cursor:pointer}
-  .btn:hover{filter:brightness(1.06)}
-  .btn:active{transform:translateY(1px)}
-  .select{background:#2a3040; color:#dfe7ff; border:0; border-radius:10px; padding:10px 12px}
-  .hint{grid-column:1 / -1; color:var(--muted); font-size:12px; margin:0}
-  .time{font-variant-numeric:tabular-nums; color:#aab2c2}
-  .timebox{display:inline-flex; align-items:center; gap:6px; white-space:nowrap; min-width:140px}
-  .timebox .sep::before{content:"/"; opacity:.6}
-
-  /* 标题放在 header 中间列 */
   .title{
-    margin:0 8px; font-size:14px; color:#dfe7ff; line-height:1.2;
-    max-width:42vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size:16px; font-weight:600; color:var(--text);
+    text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:90vw;
   }
-  @media (max-width:900px){ .title{ max-width:60vw; } }
-
-  main{ display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0; }
-  @media (max-width:900px){ main{ grid-template-columns:1fr; grid-template-rows:auto 1fr; } }
+  .cover-wrapper{
+    display:flex; justify-content:center; align-items:center;
+    margin-bottom:12px; min-height:60px; cursor:pointer;
+  }
+  .cover-img{max-width:150px; max-height:150px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.3); display:none;}
+  .cover-img.show{display:block}
+  .cover-ph{width:150px; height:150px; border-radius:8px; background:#000; display:none; box-shadow:0 4px 12px rgba(0,0,0,.3);}
+  .cover-ph.show{display:block}
+  main{display:grid; grid-template-columns:420px 1fr; height:100%; min-height:0;}
+  @media (max-width:900px){main{grid-template-columns:1fr; grid-template-rows:auto 1fr;}}
   .left{border-right:1px solid #222734; padding:12px 16px 8px; display:grid; gap:10px; align-content:start; min-width:0}
   .right{position:relative; overflow:hidden; min-width:0; min-height:0}
-  .lyrics{ position:absolute; inset:0; overflow:auto; scroll-behavior:smooth; padding:18px 14px calc(28px + env(safe-area-inset-bottom)); }
-
-  /* 媒体容器：封面/视频与居中播放按钮 */
-  .media-box{ position:relative; width:100%; }
-  .cover-wrapper{ display:flex; justify-content:center; align-items:center; min-height:60px; padding-bottom:12px; cursor:pointer; }
-  .cover-img{ max-width:150px; max-height:150px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.3); display:none; }
-  .cover-img.show{display:block}
-  .cover-ph{ width:150px; height:150px; border-radius:8px; background:#000; box-shadow:0 4px 12px rgba(0,0,0,.3); display:none; }
-  .cover-ph.show{display:block}
-  video#player{ width:100%; max-height:48vh; border-radius:10px; background:#000; display:block; }
-
-  /* 居中叠层播放按钮：暂停时显现，播放隐藏 */
-  .play-overlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
-  .play-overlay .pill{
-    backdrop-filter: blur(6px); background:rgba(0,0,0,.35);
-    border:1px solid rgba(255,255,255,.12); border-radius:999px; padding:10px 16px;
-    font-size:16px; color:#fff; opacity:0; transform:scale(.96); transition:.18s;
-  }
-  body.paused .play-overlay .pill{ opacity:1; transform:scale(1); }
-
+  .lyrics{position:absolute; inset:0; overflow:auto; scroll-behavior:smooth; padding:18px 14px calc(28px + env(safe-area-inset-bottom));}
   .progress{width:100%; height:6px; background:#222735; border-radius:999px; overflow:hidden}
   .bar{height:100%; width:0; background:#5c7cfa; transition:width .2s linear}
   .line{padding:10px 12px; margin:2px 0; border-radius:12px; cursor:pointer; transition:.12s; opacity:.9; display:flex; align-items:baseline; gap:12px}
@@ -72,71 +48,29 @@
   .line.active{background:#2c3345; color:#fff; transform:scale(1.02); box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.04)}
   .line .time{flex-shrink:0}
   .line .text{flex:1}
-
-  @media (max-width:600px){
-    header{grid-template-columns:1fr}
-    .controls{gap:8px; order:1}
-    .title{order:2; max-width:100%}
-    .lyrics{padding:14px 12px calc(26px + env(safe-area-inset-bottom))}
-    .cover-img{max-width:120px; max-height:120px}
-    .cover-ph{width:120px; height:120px}
-  }
-
-  .copy-word { cursor:pointer; padding:2px 4px; margin:0 2px; border-radius:4px; background:#2a3040; color:#fff; transition:background .2s; }
-  .copy-word:hover { background:#5c7cfa; }
-  .copy-toggle { margin-left:8px; background:#444; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; }
+  @media (max-width:600px){.cover-img{max-width:120px; max-height:120px}.cover-ph{width:120px; height:120px}}
+  .copy-word{cursor:pointer; padding:2px 4px; margin:0 2px; border-radius:4px; background:#2a3040; color:#fff; transition:background 0.2s;}
+  .copy-word:hover{background:#5c7cfa;}
+  .copy-toggle{margin-left:8px; background:#444; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;}
 </style>
 </head>
-<body class="paused">
+<body>
 <header>
-  <div class="controls">
-    <button class="btn" id="playPause">▶︎ / ⏸</button>
-    <span class="timebox">
-      <span class="time" id="cur">00:00</span>
-      <span class="sep"></span>
-      <span class="time" id="dur">00:00</span>
-    </span>
-  </div>
-
-  <!-- 中间：主标题（文件名） -->
-  <h1 id="title" class="title" title=""></h1>
-
-  <div class="controls">
-    <label class="btn" id="pickFolderBtn" for="pickerFolder" style="display:none">Folder</label>
-    <input id="pickerFolder" type="file" webkitdirectory directory multiple
-           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
-    <label class="btn" id="pickFilesBtn" for="pickerFiles">Files</label>
-    <input id="pickerFiles" type="file" multiple
-       accept="audio/*,video/*,.mp4,.m4v,.mov,.webm,.srt,.lrc,.txt,text/plain" style="display:none" />
-    <select id="pairSelect" class="select" style="display:none"></select>
-    <button class="btn" id="timerBtn">定时 10 分钟</button>
-  </div>
-
-  <p class="hint" id="hintText">电脑端可“选择文件夹”或多选文件；iOS 需从“文件”App 选择（Apple Music 库不支持）。</p>
+  <h1 id="title" class="title">未选择文件</h1>
 </header>
-
 <main>
   <section class="left">
-    <div class="media-box" id="mediaBox">
-      <!-- 封面（音频时显示） -->
-      <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
-        <img id="coverImg" class="cover-img" alt="专辑封面" />
-        <div id="coverPh" class="cover-ph"></div>
-      </div>
-      <!-- 视频（视频时显示） -->
-      <video id="player" preload="metadata" controls playsinline></video>
-      <!-- 居中播放提示叠层（暂停时可见） -->
-      <div class="play-overlay"><div class="pill">▶︎ 播放</div></div>
+    <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
+      <img id="coverImg" class="cover-img" alt="专辑封面" />
+      <div id="coverPh" class="cover-ph"></div>
     </div>
-
+    <video id="player" preload="metadata" controls playsinline style="width:100%; max-height:48vh; border-radius:10px; background:#000"></video>
     <div class="progress"><div class="bar" id="bar"></div></div>
-    <p class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</p>
   </section>
   <section class="right">
     <div id="lyrics" class="lyrics" aria-label="lyrics list"></div>
   </section>
 </main>
-
 <script>
 const ua = navigator.userAgent || "";
 const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
