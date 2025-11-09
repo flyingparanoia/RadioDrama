@@ -118,7 +118,7 @@
            accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
     <label class="btn" id="pickFilesBtn" for="pickerFiles">选择文件</label>
     <input id="pickerFiles" type="file" multiple
-           accept="audio/*,.srt,.lrc,.txt,text/plain" style="display:none" />
+       accept="audio/*,video/*,.mp4,.m4v,.mov,.webm,.srt,.lrc,.txt,text/plain" style="display:none" />
     <select id="pairSelect" class="select" style="display:none"></select>
     <button class="btn" id="timerBtn">定时暂停 10 分钟</button>
   </div>
@@ -132,7 +132,7 @@
     <div class="cover-wrapper" id="coverWrap" role="button" aria-label="点击播放或暂停" tabindex="0">
       <img id="coverImg" class="cover-img" alt="专辑封面" />
     </div>
-    <audio id="player" preload="metadata" controls style="width:100%"></audio>
+    <video id="player" preload="metadata" controls playsinline style="width:100%; max-height:48vh; border-radius:10px; background:#000"></video>
     <div class="progress"><div class="bar" id="bar"></div></div>
     <p class="hint">点击任意一行跳转；↑/↓ 选择行，Enter 跳转播放。</p>
   </section>
@@ -165,13 +165,19 @@ let cues = [], activeIdx = -1;
 const fmt = s => { if(!isFinite(s)) s=0; const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
 const ext = f => f.name.split('.').pop().toLowerCase();
 const stem = f => f.name.replace(/\.[^.]+$/,'').toLowerCase();
-const isAudio = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i.test(e);
+const isMedia = e => /^(mp3|m4a|aac|wav|flac|ogg|oga|opus|mp4|m4v|mov|webm)$/i.test(e);
 const isLyric = e => /^(srt|lrc|txt)$/i.test(e);
 const escapeHtml = s => s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
 /* ===== 提取封面 ===== */
 function extractCover(file){
   coverImg.classList.remove('show');
+  
+    // 🔽 新增：如果是视频，直接跳过封面提取（交给 <video> 自己显示画面）
+  if (file && /\.(mp4|m4v|mov|webm)$/i.test(file.name)) {
+    return;
+  }
+  
   if (!file || !window.jsmediatags) return;
   
   window.jsmediatags.read(file, {
@@ -467,10 +473,10 @@ async function handleFiles(fileList){
   const groups = new Map();
   for(const f of files){
     const ex = ext(f), st = stem(f);
-    if(!(isAudio(ex)||isLyric(ex))) continue;
+    if(!(isMedia(ex)||isLyric(ex))) continue;
     if(!groups.has(st)) groups.set(st,{audio:null, lyric:null, name:st});
     const g = groups.get(st);
-    if(isAudio(ex) && !g.audio) g.audio=f;
+    if(isMedia(ex) && !g.audio) g.audio=f; 
     if(isLyric(ex)) { if(!g.lyric || /\.srt$/i.test(f.name)) g.lyric=f; }
   }
   const pairs = [...groups.values()].filter(g=>g.audio||g.lyric);
