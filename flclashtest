@@ -1,0 +1,109 @@
+# ====== 订阅源设置 ======
+proxy-providers:
+  provider1:
+    type: http
+    url: "https://xxxxx.com/sub1"     # ← 这里填写你的订阅地址
+    interval: 86400
+    health-check:
+      enable: true
+      url: "https://www.gstatic.com/generate_204"
+      interval: 300
+
+proxies:
+  - name: "直连"
+    type: direct
+    udp: true
+
+# ====== 基础设置 ======
+mixed-port: 7890
+allow-lan: true
+ipv6: false
+tcp-concurrent: true
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+# ====== DNS 设置（支持 DOH，含 Fake-IP）======
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://1.1.1.1/dns-query
+  fallback:
+    - https://8.8.8.8/dns-query
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "+.stun.*.*"
+
+# ====== 策略组 (核心结构保留)======
+proxy-groups:
+  - name: 默认
+    type: select
+    proxies:
+      - 自动选择
+      - 直连
+      - 香港
+      - 台湾
+      - 日本
+      - 美国
+      - 新加坡
+      - 其它地区
+      - 全部节点
+
+  - name: 自动选择
+    type: url-test
+    use:
+      - provider1
+    tolerance: 50
+    url: "https://www.gstatic.com/generate_204"
+    interval: 300
+
+  - name: 香港
+    type: select
+    use:
+      - provider1
+    filter: "(?i)港|hk|hong"
+
+  - name: 日本
+    type: select
+    use:
+      - provider1
+    filter: "(?i)jp|日本"
+
+  - name: 台湾
+    type: select
+    use:
+      - provider1
+    filter: "(?i)tw|台湾"
+
+  - name: 美国
+    type: select
+    use:
+      - provider1
+    filter: "(?i)us|美国"
+
+  - name: 新加坡
+    type: select
+    use:
+      - provider1
+    filter: "(?i)sg|新加坡"
+
+  - name: 其它地区
+    type: select
+    use:
+      - provider1
+
+  - name: 全部节点
+    type: select
+    use:
+      - provider1
+
+# ====== 路由规则（精简版）======
+rules:
+  - GEOIP,CN,直连
+  - GEOSITE,cn,直连
+  - MATCH,默认
