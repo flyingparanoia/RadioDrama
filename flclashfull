@@ -122,6 +122,11 @@ proxy-providers:
 
 # ===== 分组（已去掉所有 relay 相关项）=====
 proxy-groups:
+  - name: "DIRECT"
+    type: select
+    url: 'http://www.msftconnecttest.com/connecttest.txt'
+    proxies: [DIRECT]
+    
   - name: "🚀 节点选择"
     type: select
     proxies: [🇺🇸 JMS, 🇳🇱 JMS5, 🇯🇵 JMS4, "🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US Select", DIRECT]
