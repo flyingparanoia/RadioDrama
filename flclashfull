@@ -122,14 +122,14 @@ proxy-providers:
 
 # ===== 分组（已去掉所有 relay 相关项）=====
 proxy-groups:
-  - name: "DIRECT"
+  - name: "直连"
     type: select
     url: 'http://www.msftconnecttest.com/connecttest.txt'
     proxies: [DIRECT]
     
   - name: "🚀 节点选择"
     type: select
-    proxies: [🇺🇸 JMS, 🇳🇱 JMS5, 🇯🇵 JMS4, "🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US Select", DIRECT]
+    proxies: [🇺🇸 JMS, 🇳🇱 JMS5, 🇯🇵 JMS4, "🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US Select", 直连]
 
   - name: "🤖 OpenAI Select"
     type: select
@@ -170,31 +170,31 @@ proxy-groups:
   - name: "🖥 Microsoft"
     type: select
     interval: 60
-    proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", "🚀 节点选择", DIRECT]
+    proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", "🚀 节点选择", 直连]
 
   - name: "👁️ Streaming 抖音"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "👁️ Streaming Prime"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "👁️ Streaming Tiktok"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "👁️ Streaming Disney"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "👁️ Streaming PlutoTV"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "👁️ Streaming AppleTV"
     type: select
-    proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
+    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
 
   - name: "🇺🇸 JMS"
     type: select
@@ -206,15 +206,15 @@ proxy-groups:
 
   - name: "🎯 全球直连"
     type: select
-    proxies: [DIRECT, "🚀 节点选择"]
+    proxies: [直连, "🚀 节点选择"]
 
   - name: "🛑 全球拦截"
     type: select
-    proxies: [REJECT, DIRECT]
+    proxies: [REJECT, 直连]
 
   - name: "🍃 应用净化"
     type: select
-    proxies: [REJECT, DIRECT]
+    proxies: [REJECT, 直连]
 
   - name: "🐟 漏网之鱼"
     type: select
