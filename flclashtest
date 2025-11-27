@@ -1,30 +1,17 @@
-# ====== 订阅源设置 ======
-proxy-providers:
-  provider1:
-    type: http
-    url: "https://xxxxx.com/sub1"     # ← 这里填写你的订阅地址
-    interval: 86400
-    health-check:
-      enable: true
-      url: "https://www.gstatic.com/generate_204"
-      interval: 300
-
+# ====== 节点列表 ======
 proxies:
-  - name: "直连"
-    type: direct
-    udp: true
+  - {name: "🇺🇸 JMS1", type: ss, server: c10s1.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ, udp: true}
+  - {name: "🇺🇸 JMS2", type: ss, server: c10s2.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ, udp: true}
+  - {name: "🇺🇸 JMS3", type: vmess, server: c10s3.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, skip-cert-verify: false, tls: false, alterId: 0}
+  - {name: "🇯🇵 JMS4", type: vmess, server: c10s4.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, skip-cert-verify: false, tls: false, alterId: 0}
+  - {name: "🇳🇱 JMS5", type: vmess, server: c10s5.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, skip-cert-verify: false, tls: false, alterId: 0}
+  - {name: "🇺🇸 JMS6", type: vmess, server: c10s801.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, skip-cert-verify: false, tls: false, alterId: 0}
 
-# ====== 基础设置 ======
 mixed-port: 7890
 allow-lan: true
 ipv6: false
 tcp-concurrent: true
 
-profile:
-  store-selected: true
-  store-fake-ip: true
-
-# ====== DNS 设置（支持 DOH，含 Fake-IP）======
 dns:
   enable: true
   ipv6: false
@@ -39,71 +26,47 @@ dns:
     - "*.local"
     - "+.stun.*.*"
 
-# ====== 策略组 (核心结构保留)======
 proxy-groups:
   - name: 默认
     type: select
     proxies:
       - 自动选择
       - 直连
-      - 香港
-      - 台湾
-      - 日本
-      - 美国
-      - 新加坡
-      - 其它地区
-      - 全部节点
+      - 🇺🇸 JMS1
+      - 🇺🇸 JMS2
+      - 🇺🇸 JMS3
+      - 🇯🇵 JMS4
+      - 🇳🇱 JMS5
+      - 🇺🇸 JMS6
 
   - name: 自动选择
     type: url-test
-    use:
-      - provider1
-    tolerance: 50
+    proxies:
+      - 🇺🇸 JMS1
+      - 🇺🇸 JMS2
+      - 🇺🇸 JMS3
+      - 🇯🇵 JMS4
+      - 🇳🇱 JMS5
+      - 🇺🇸 JMS6
     url: "https://www.gstatic.com/generate_204"
     interval: 300
+    tolerance: 50
 
-  - name: 香港
+  - name: 国外节点
     type: select
-    use:
-      - provider1
-    filter: "(?i)港|hk|hong"
+    proxies:
+      - 🇺🇸 JMS1
+      - 🇺🇸 JMS2
+      - 🇺🇸 JMS3
+      - 🇯🇵 JMS4
+      - 🇳🇱 JMS5
+      - 🇺🇸 JMS6
 
-  - name: 日本
+  - name: 直连
     type: select
-    use:
-      - provider1
-    filter: "(?i)jp|日本"
+    proxies:
+      - DIRECT
 
-  - name: 台湾
-    type: select
-    use:
-      - provider1
-    filter: "(?i)tw|台湾"
-
-  - name: 美国
-    type: select
-    use:
-      - provider1
-    filter: "(?i)us|美国"
-
-  - name: 新加坡
-    type: select
-    use:
-      - provider1
-    filter: "(?i)sg|新加坡"
-
-  - name: 其它地区
-    type: select
-    use:
-      - provider1
-
-  - name: 全部节点
-    type: select
-    use:
-      - provider1
-
-# ====== 路由规则（精简版）======
 rules:
   - GEOIP,CN,直连
-  - GEOSITE,cn,直连
   - MATCH,默认
