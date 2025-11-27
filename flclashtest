@@ -13,18 +13,20 @@ ipv6: false
 tcp-concurrent: true
 
 dns:
-  enable: true
-  ipv6: false
+  enabled: true
+  listen: 0.0.0.0:53
   enhanced-mode: fake-ip
   nameserver:
+    - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
-    - https://1.1.1.1/dns-query
   fallback:
-    - https://8.8.8.8/dns-query
-  fake-ip-filter:
-    - "*.lan"
-    - "*.local"
-    - "+.stun.*.*"
+    - https://doh.pub/dns-query
+    - https://dns.google/dns-query
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - 240.0.0.0/4
 
 proxy-groups:
   - name: 默认
