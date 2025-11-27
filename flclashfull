@@ -554,7 +554,7 @@ rules:
   - DOMAIN-SUFFIX,amazonuniversity.jobs,👁️ Streaming Prime
   - DOMAIN-SUFFIX,seattlespheres.com,👁️ Streaming Prime
   # ===== 视频页面正则匹配 =====
-  - URL-REGEX,^https?:\/\/www\.amazon\.com\/(Amazon-Video|gp\/video)\/,👁️ Streaming Prime
+  # - URL-REGEX,^https?:\/\/www\.amazon\.com\/(Amazon-Video|gp\/video)\/,👁️ Streaming Prime
   # =========================
   # ===== PlutoTV-CBS ========
   # =========================
