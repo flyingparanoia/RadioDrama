@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>내 이름은 김삼순 Player</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c10;
+      --panel: rgba(0, 0, 0, 0.6);
+      --accent: #7dd3fc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #f8fafc;
+      font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #wrap { height: 100vh; display: grid; }
+    video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    #controls {
+      position: fixed;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      backdrop-filter: blur(8px);
+    }
+    label { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+    select, input[type="range"] {
+      accent-color: var(--accent);
+      background: #111827;
+      color: #e2e8f0;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    #posVal { min-width: 42px; text-align: right; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <video id="video" controls preload="metadata" crossorigin="anonymous">
+      <source id="videoSource" src="" type="video/mp4" />
+      <track id="track" kind="subtitles" srclang="zh" default />
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <div id="controls">
+    <label>
+      Episode:
+      <select id="episode"></select>
+    </label>
+    <label>
+      Subtitle Y (%):
+      <input id="pos" type="range" min="0" max="100" value="90" />
+      <span id="posVal">90%</span>
+    </label>
+  </div>
+
+  <script>
+    const episodes = [
+      "01 - Life Is Like A Box Filled With Bonbon Au Chocolat",
+      "02 - Shall We Try Dating?",
+      "03 - How Does One Write A Love Contract?",
+      "04 - Over The Rainbow",
+      "05 - Love Is Supposed To Be Childish",
+      "06 - The Calories Of A Kiss, The Calories Of Love",
+      "07 - Madeleine, In Search Of Lost Time",
+      "08 - Daddy, Why Is My Love Life So Hard?",
+      "09 - You Played With My Heart As If It Were A Toy",
+      "10 - My Name Is Kim Hee-jin",
+      "11 - Don't Say It Was A Mistake. This Is The Second Kiss",
+      "12 - What's The Big Deal? I've Only Just Turned 30!",
+      "13 - The Way To Break Up With Her",
+      "14 - The Elements Of A Romance",
+      "15 - The Rules Of Romance",
+      "16 - Love Like You've Never Been Hurt Before"
+    ];
+
+    const video = document.getElementById("video");
+    const videoSource = document.getElementById("videoSource");
+    const trackEl = document.getElementById("track");
+    const select = document.getElementById("episode");
+    const slider = document.getElementById("pos");
+    const posVal = document.getElementById("posVal");
+
+    function populate() {
+      episodes.forEach((title, idx) => {
+        const opt = document.createElement("option");
+        opt.value = title;
+        opt.textContent = `${idx + 1} - ${title}`;
+        select.appendChild(opt);
+      });
+    }
+
+    function loadEpisode(title) {
+      video.pause();
+      const base = encodeURIComponent(title);
+      videoSource.src = `${title}.mp4`;
+      trackEl.src = `${title}.vtt`;
+      video.load();
+    }
+
+    function applyLine(position) {
+      const cues = trackEl.track && trackEl.track.cues;
+      if (!cues) return;
+      for (const cue of cues) {
+        cue.line = position;
+        cue.position = 50;
+        cue.align = "center";
+      }
+    }
+
+    select.addEventListener("change", () => loadEpisode(select.value));
+    slider.addEventListener("input", (e) => {
+      posVal.textContent = `${e.target.value}%`;
+      applyLine(Number(e.target.value));
+    });
+    trackEl.addEventListener("load", () => applyLine(Number(slider.value)));
+
+    populate();
+    select.value = episodes[0];
+    loadEpisode(select.value);
+  </script>
+</body>
+</html>
