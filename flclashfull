@@ -129,6 +129,8 @@ proxy-providers:
     payload:
       - {name: "🇺🇸 JMS1-via-JP", type: ss, server: c10s1.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
       - {name: "🇺🇸 JMS2-via-JP", type: ss, server: c10s2.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      # 已添加：JMS3 (VMess) 经由日本中转
+      - {name: "🇺🇸 JMS3-via-JP", type: vmess, server: c10s3.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
       - {name: "🇺🇸 JMS6-via-JP", type: vmess, server: c10s801.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
 
   jms-outbound-nl:
@@ -138,6 +140,8 @@ proxy-providers:
     payload:
       - {name: "🇺🇸 JMS1-via-NL", type: ss, server: c10s1.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
       - {name: "🇺🇸 JMS2-via-NL", type: ss, server: c10s2.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      # 已添加：JMS3 (VMess) 经由荷兰中转
+      - {name: "🇺🇸 JMS3-via-NL", type: vmess, server: c10s3.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
       - {name: "🇺🇸 JMS6-via-NL", type: vmess, server: c10s801.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
 
 
