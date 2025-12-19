@@ -120,141 +120,81 @@ proxy-providers:
       url: https://www.gstatic.com/generate_204
       interval: 300
 
-# ===== 分组（已去掉所有 relay 相关项）=====
+
+# ===== 这里的 payload 是落地节点，通过 override 指定中转
+  jms-outbound-jp:
+    type: inline
+    override:
+      dialer-proxy: "🇯🇵 JMS4" # 流量先经过日本 JMS4，再到达以下节点
+    payload:
+      - {name: "🇺🇸 JMS1-via-JP", type: ss, server: c10s1.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      - {name: "🇺🇸 JMS2-via-JP", type: ss, server: c10s2.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      - {name: "🇺🇸 JMS6-via-JP", type: vmess, server: c10s801.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
+
+  jms-outbound-nl:
+    type: inline
+    override:
+      dialer-proxy: "🇳🇱 JMS5" # 流量先经过荷兰 JMS5，再到达以下节点
+    payload:
+      - {name: "🇺🇸 JMS1-via-NL", type: ss, server: c10s1.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      - {name: "🇺🇸 JMS2-via-NL", type: ss, server: c10s2.portablesubmarines.com, port: 18786, cipher: aes-256-gcm, password: rJEfr6SXmTLKFZzQ}
+      - {name: "🇺🇸 JMS6-via-NL", type: vmess, server: c10s801.portablesubmarines.com, port: 18786, cipher: aes-128-gcm, uuid: f822d020-fa2d-4731-80ed-6a333d656b7c, alterId: 0}
+
+
+
+# ===== 分组 =====
 proxy-groups:
   - name: "直连"
     type: select
     url: 'http://www.msftconnecttest.com/connecttest.txt'
     proxies: [DIRECT]
-    
+   
+    # 1. 核心选择组
   - name: "🚀 节点选择"
     type: select
-    proxies: [🇺🇸 JMS, 🇳🇱 JMS5, 🇯🇵 JMS4, "🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US Select", 直连]
+    proxies: [🇺🇸 JMS, 🇳🇱 JMS5, 🇯🇵 JMS4, "🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US Select", 直连, 🤩 Relay Select, 🤩 Relay]
 
-  - name: "🤖 OpenAI Select"
-    type: select
-    interval: 60
-    proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", "🚀 节点选择"]
 
-  - name: "🇺🇸 MESL US Select"
-    type: select
-    use: [MESL]
-    filter: "🇺🇸"
-    interval: 60
-    proxies: []
+  # 2. Relay 相关组 (已改写为 dialer-proxy 逻辑)
+  - {name: "🤩 Relay JPUS", type: url-test, interval: 300, use: [jms-outbound-jp]}
+  - {name: "🤩 Relay NLUS", type: url-test, interval: 300, use: [jms-outbound-nl]}
+  - {name: "🤩 Relay Select", type: select, proxies: [🤩 Relay JPUS, 🤩 Relay NLUS]}
+  - {name: "🤩 Relay", type: url-test, interval: 200, proxies: [🤩 Relay JPUS, 🤩 Relay NLUS]}
 
-  - name: "🇺🇸 JMS Auto"
-    type: url-test
-    interval: 60
-    proxies: ["🇺🇸 JMS1", "🇺🇸 JMS2", "🇺🇸 JMS6"]
+  # 3. 业务逻辑组
+  - {name: "🤖 OpenAI Select", type: select, proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", 🚀 节点选择]}
+  - {name: "🔍 Google Search", type: select, proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", 🚀 节点选择]}
+  - {name: "🎬 YouTube Porn X Select", type: select, proxies: [🇯🇵 JMS4, 🇳🇱 JMS5, 🚀 节点选择, 🇺🇸 JMS, 🇺🇸 MESL US auto, 🇭🇰 MESL HK auto]}
+  - {name: "📡 UK Broadcast", type: select, proxies: [🚀 节点选择, "🇬🇧 MESL UK auto", "🇬🇧 MESL UK Select"]}
+  - {name: "🇺🇸 US Light Data Usage Select", type: select, proxies: ["🇺🇸 MESL US Select", "🇬🇧 MESL UK Select", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", "🇺🇸 JMS", 🤩 Relay Select]}
+  - {name: "🖥 Microsoft", type: select, proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", 🚀 节点选择, DIRECT]}
+  
+    # 4. 媒体流组 (引用了新旧组，逻辑保持不变)
+  - {name: "👁️ Streaming 抖音", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
+  - {name: "👁️ Streaming Prime", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
+  - {name: "👁️ Streaming Tiktok", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
+  - {name: "👁️ Streaming Disney", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
+  - {name: "👁️ Streaming PlutoTV", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
+  - {name: "👁️ Streaming AppleTV", type: select, proxies: [DIRECT, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto, 🤩 Relay, 🤩 Relay Select]}
 
-  - name: "🔍 Google Search"
-    type: select
-    interval: 60
-    proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", "🚀 节点选择"]
+  # 5. 基础节点组
+  - {name: "🇺🇸 JMS Auto", type: url-test, interval: 60, proxies: ["🇺🇸 JMS1", "🇺🇸 JMS2", "🇺🇸 JMS6"]}
+  - {name: "🇺🇸 JMS", type: select, proxies: ["🇺🇸 JMS1", "🇺🇸 JMS2", "🇺🇸 JMS3", 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS6"]}
+  - {name: "🍎 苹果服务", type: select, proxies: ["🚀 节点选择", "🎯 全球直连", "🇺🇸 JMS Auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto"]}
+  - {name: "🎯 全球直连", type: select, proxies: [DIRECT, "🚀 节点选择"]}
+  - {name: "🛑 全球拦截", type: select, proxies: [REJECT, DIRECT]}
+  - {name: "🍃 应用净化", type: select, proxies: [REJECT, DIRECT]}
+  - {name: "🐟 漏网之鱼", type: select, proxies: ["🚀 节点选择", "🎯 全球直连", 🇭🇰 MESL HK auto, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto"]}
 
-  - name: "🎬 YouTube Porn X Select"
-    type: select
-    proxies: [🇯🇵 JMS4, 🇳🇱 JMS5, "🚀 节点选择", 🇺🇸 JMS, "🇺🇸 MESL US auto", 🇭🇰 MESL HK auto]
+  # 6. MESL 动态过滤组
+  - {name: "🇺🇸 MESL US Select", type: select, use: [MESL], filter: "🇺🇸"}
+  - {name: "🇨🇦 MESL CA auto", type: url-test, include-all: true, filter: '🇨🇦', interval: 60}
+  - {name: "🇬🇧 MESL UK auto", type: url-test, include-all: true, filter: '🇬🇧', interval: 60}
+  - {name: "🇬🇧 MESL UK Select", type: select, include-all: true, filter: '🇬🇧', interval: 60}
+  - {name: "🇺🇸 MESL US auto", type: url-test, include-all: true, filter: '🇺🇸', interval: 60}
+  - {name: "🇭🇰 MESL HK auto", type: url-test, include-all: true, filter: '🇭🇰', interval: 60}
+  - {name: "🇩🇪 MESL DE auto", type: url-test, include-all: true, filter: '🇩🇪', interval: 60}
 
-  - name: "📡 UK Broadcast"
-    type: select
-    interval: 60
-    proxies: ["🚀 节点选择", "🇬🇧 MESL UK auto", "🇬🇧 MESL UK Select"]
-
-  - name: "🇺🇸 US Light Data Usage Select"
-    type: select
-    interval: 60
-    proxies: ["🇺🇸 MESL US Select", "🇬🇧 MESL UK Select", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", "🇺🇸 JMS"]
-
-  - name: "🖥 Microsoft"
-    type: select
-    interval: 60
-    proxies: ["🇺🇸 JMS Auto", "🇺🇸 MESL US auto", "🇺🇸 MESL US Select", "🚀 节点选择", 直连]
-
-  - name: "👁️ Streaming 抖音"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "👁️ Streaming Prime"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "👁️ Streaming Tiktok"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "👁️ Streaming Disney"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "👁️ Streaming PlutoTV"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "👁️ Streaming AppleTV"
-    type: select
-    proxies: [直连, 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS Auto", "🇺🇸 JMS", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto", 🇩🇪 MESL DE auto, 🇭🇰 MESL HK auto]
-
-  - name: "🇺🇸 JMS"
-    type: select
-    proxies: ["🇺🇸 JMS1", "🇺🇸 JMS2", "🇺🇸 JMS3", 🇯🇵 JMS4, 🇳🇱 JMS5, "🇺🇸 JMS6"]
-
-  - name: "🍎 苹果服务"
-    type: select
-    proxies: ["🚀 节点选择", "🎯 全球直连", "🇺🇸 JMS Auto", "🇬🇧 MESL UK auto", "🇺🇸 MESL US auto"]
-
-  - name: "🎯 全球直连"
-    type: select
-    proxies: [直连, "🚀 节点选择"]
-
-  - name: "🛑 全球拦截"
-    type: select
-    proxies: [REJECT, 直连]
-
-  - name: "🍃 应用净化"
-    type: select
-    proxies: [REJECT, 直连]
-
-  - name: "🐟 漏网之鱼"
-    type: select
-    proxies: ["🚀 节点选择", "🎯 全球直连", 🇭🇰 MESL HK auto, 🇯🇵 JMS4, 🇳🇱 JMS5, 🇺🇸 JMS Auto]
-
-  - name: "🇨🇦 MESL CA auto"
-    type: url-test
-    include-all: true
-    filter: "🇨🇦"
-    interval: 60
-
-  - name: "🇬🇧 MESL UK auto"
-    type: url-test
-    include-all: true
-    filter: "🇬🇧"
-    interval: 60
-
-  - name: "🇬🇧 MESL UK Select"
-    type: select
-    include-all: true
-    filter: "🇬🇧"
-    interval: 60
-
-  - name: "🇺🇸 MESL US auto"
-    type: url-test
-    include-all: true
-    filter: "🇺🇸"
-    interval: 60
-
-  - name: "🇭🇰 MESL HK auto"
-    type: url-test
-    include-all: true
-    filter: "🇭🇰"
-    interval: 60
-
-  - name: "🇩🇪 MESL DE auto"
-    type: url-test
-    include-all: true
-    filter: "🇩🇪"
-    interval: 60
 
 # ===== 分流规则 =====
 # 这一段在 FlClash 中可以 **直接粘贴你 Stash 里的 rules 全部内容**，
