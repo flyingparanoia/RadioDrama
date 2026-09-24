@@ -1,0 +1,47 @@
+name: "📊 Stash 流量面板"
+desc: "首页显示本机 API 累计流量与连接快照下载排行；不是 JMS 账单或历史流量记录。包含本机 API 密钥，请勿分享。"
+tiles:
+  - name: local-traffic-snapshot
+    interval: 10
+    title: "Stash 流量统计"
+    content: "等待读取本机 API"
+    icon: "chart.bar.fill"
+    backgroundColor: "#1685D1"
+    collapsed: false
+    argument: "uxWVpKHs"
+script-providers:
+  local-traffic-snapshot:
+    payload: |
+      // Snapshot only: totals are reported by Stash, not provider billing.
+      function bytes(v) {
+        var n = Math.max(0, Number(v) || 0), units = ['B', 'KiB', 'MiB', 'GiB'], i = 0;
+        while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+        return n.toFixed(i ? 2 : 0) + ' ' + units[i];
+      }
+      var key = $argument;
+      $httpClient.get({
+        url: 'http://127.0.0.1:9090/connections',
+        headers: {'Authorization': 'Bearer ' + key, 'X-Stash-Selected-Proxy': 'DIRECT'},
+        timeout: 5, 'auto-redirect': false
+      }, function(error, response, body) {
+        if (error) { $done({title: '流量统计 · 未连接', content: '无法读取本机 API，请确认 Stash 已启动。'}); return; }
+        try {
+          var data = JSON.parse(body);
+          if (!Array.isArray(data.connections) || typeof data.downloadTotal !== 'number') throw new Error('API response');
+          var groups = Object.create(null), count = 0;
+          data.connections.forEach(function(c) {
+            var m = c.metadata || {}, host = m.host || m.destinationIP || '未知目标';
+            if (m.destinationIP === '127.0.0.1' && String(m.destinationPort) === '9090') return;
+            count++;
+            groups[host] = (groups[host] || 0) + Math.max(0, Number(c.download) || 0);
+          });
+          var top = Object.keys(groups).sort(function(a,b) { return groups[b] - groups[a]; }).slice(0,3);
+          var text = '接口累计 ↓ ' + bytes(data.downloadTotal) + '  ↑ ' + bytes(data.uploadTotal);
+          text += '\n连接快照 ' + count + ' 条 · 下载排行';
+          top.forEach(function(host) { text += '\n' + host + '  ' + bytes(groups[host]); });
+          text += '\n更新 ' + new Date().toLocaleTimeString();
+          $done({title: 'Stash 流量统计', content: text, icon: 'chart.bar.fill', backgroundColor: '#1685D1'});
+        } catch (_) {
+          $done({title: '流量统计 · 读取失败', content: '请检查 API 密钥、端口和接口响应。'});
+        }
+      });
