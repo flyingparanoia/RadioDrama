@@ -1,10 +1,10 @@
 name: "📊 JMS 剩余流量"
-desc: "展示 JMS 套餐总额、已用、剩余、剩余比例及每月重置日。GB 按十进制换算；每 5 分钟查询。请在 Stash 脚本存储数据中设置 jms.bandwidth.api，勿把个人查询链接上传到公开仓库。"
+desc: "展示 JMS 套餐总额、已用、剩余、剩余比例及每月重置日。GB 按十进制换算；手动点击刷新。请在 Stash 脚本存储数据中设置 jms.bandwidth.api，勿把个人查询链接上传到公开仓库。"
 tiles:
   - name: jms-bandwidth-tile
-    interval: 300
+    interval: 86400000
     title: "JMS 套餐剩余流量"
-    content: "等待查询；请先设置本地 API 地址"
+    content: "点击卡片查询剩余流量"
     icon: "chart.pie.fill"
     backgroundColor: "#1685D1"
     collapsed: false
